@@ -1,0 +1,386 @@
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+/************************************************************************/
+/* Store Procedure:  isp_SCE_DL_GENERIC_SO_RULES_100011_10              */
+/* Creation Date: 28-Dec-2021                                           */
+/* Copyright: LFL                                                       */
+/* Written by: GHChan                                                   */
+/*                                                                      */
+/* Purpose:  Perform PackKey and UOM checking                           */
+/*                                                                      */
+/*                                                                      */
+/* Usage:  @c_InParm1 = '1' will check PackKey nullable                 */
+/* Usage:  @c_InParm2 = '1' will validate the PackKey whether           */
+/*         is exists in SKU table with SKU value or not.                */
+/*         @c_InParm2 = '2' will validate the PackKey whether           */
+/*         is exists in SKU table with AltSKU value or not.             */
+/*                                                                      */
+/*                                                                      */
+/* Called By: - SCE DL Main Stored Procedures e.g. (isp_SCE_DL_Generic) */
+/*                                                                      */
+/* Version: 1.2                                                         */
+/*                                                                      */
+/* Data Modifications:                                                  */
+/*                                                                      */
+/* Updates:                                                             */
+/* Date         Author    Ver.  Purposes                                */
+/* 28-Dec-2021  GHChan    1.1   Initial                                 */
+/* 02-Sep-2024  WLChooi   1.2   Bug Fix - Unable to update STG table if */
+/*                              PackKey is not exists (WL01)            */
+/************************************************************************/
+
+CREATE   PROCEDURE [dbo].[isp_SCE_DL_GENERIC_SO_RULES_100011_10] (
+   @b_Debug       INT            = 0
+ , @n_BatchNo     INT            = 0
+ , @n_Flag        INT            = 0
+ , @c_SubRuleJson NVARCHAR(MAX)
+ , @c_STGTBL      NVARCHAR(250)  = ''
+ , @c_POSTTBL     NVARCHAR(250)  = ''
+ , @c_UniqKeyCol  NVARCHAR(1000) = ''
+ , @c_Username    NVARCHAR(128)  = ''
+ , @b_Success     INT            = 0 OUTPUT
+ , @n_ErrNo       INT            = 0 OUTPUT
+ , @c_ErrMsg      NVARCHAR(250)  = '' OUTPUT
+)
+AS
+BEGIN
+   SET NOCOUNT ON;
+   SET ANSI_NULLS OFF;
+   SET QUOTED_IDENTIFIER OFF;
+   SET CONCAT_NULL_YIELDS_NULL OFF;
+   SET ANSI_WARNINGS OFF;
+
+   DECLARE @c_ExecStatements NVARCHAR(4000)
+         , @c_ExecArguments  NVARCHAR(4000)
+         , @n_Continue       INT
+         , @n_StartTCnt      INT;
+
+   DECLARE @c_InParm1 NVARCHAR(60)
+         , @c_InParm2 NVARCHAR(60)
+         , @c_InParm3 NVARCHAR(60)
+         , @c_InParm4 NVARCHAR(60)
+         , @c_InParm5 NVARCHAR(60);
+   --, @c_InParm6            NVARCHAR(60)    
+   --, @c_InParm7            NVARCHAR(60)    
+   --, @c_InParm8            NVARCHAR(60)    
+   --, @c_InParm9            NVARCHAR(60)    
+   --, @c_InParm10           NVARCHAR(60)    
+
+   DECLARE @c_Packkey   NVARCHAR(10)
+         , @c_StorerKey NVARCHAR(15)
+         , @c_SKU       NVARCHAR(20)
+         , @c_AltSKU    NVARCHAR(20)
+         , @c_UOM       NVARCHAR(10)
+         , @c_ttlMsg    NVARCHAR(250)
+         , @n_RowRefNo  BIGINT;   --WL01
+
+   SELECT @c_InParm1 = InParm1
+        , @c_InParm2 = InParm2
+        , @c_InParm3 = InParm3
+        , @c_InParm4 = InParm4
+        , @c_InParm5 = InParm5
+   FROM
+      OPENJSON(@c_SubRuleJson)
+      WITH (
+      SPName NVARCHAR(300) '$.SubRuleSP'
+    , InParm1 NVARCHAR(60) '$.InParm1'
+    , InParm2 NVARCHAR(60) '$.InParm2'
+    , InParm3 NVARCHAR(60) '$.InParm3'
+    , InParm4 NVARCHAR(60) '$.InParm4'
+    , InParm5 NVARCHAR(60) '$.InParm5'
+      )
+   WHERE SPName = OBJECT_NAME(@@PROCID);
+
+   IF @c_InParm1 = '1'
+   BEGIN
+      IF EXISTS (
+      SELECT 1
+      FROM dbo.SCE_DL_SO_STG WITH (NOLOCK)
+      WHERE STG_BatchNo               = @n_BatchNo
+      AND   STG_Status                  = '1'
+      AND   (
+             Packkey IS NULL
+          OR ISNULL(RTRIM(Packkey), '') = ''
+      )
+      )
+      BEGIN
+         BEGIN TRANSACTION;
+
+         UPDATE dbo.SCE_DL_SO_STG WITH (ROWLOCK)
+         SET STG_Status = '5'
+           , STG_ErrMsg = LTRIM(RTRIM(ISNULL(STG_ErrMsg, ''))) + '/Packkey is null'
+         WHERE STG_BatchNo               = @n_BatchNo
+         AND   STG_Status                  = '1'
+         AND   (
+                Packkey IS NULL
+             OR ISNULL(RTRIM(Packkey), '') = ''
+         );
+
+
+         IF @@ERROR <> 0
+         BEGIN
+            SET @n_Continue = 3;
+            SET @n_ErrNo = 68001;
+            SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                            + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100011_10)';
+            ROLLBACK;
+            GOTO STEP_999_EXIT_SP;
+         END;
+
+         COMMIT;
+      END;
+   END;
+
+   --WL01 S
+   DECLARE CUR_PACK CURSOR LOCAL FAST_FORWARD READ_ONLY FOR
+   SELECT STG.RowRefNo
+   FROM dbo.SCE_DL_SO_STG STG WITH (NOLOCK)
+   LEFT JOIN dbo.PACK P WITH (NOLOCK) ON P.PackKey = STG.Packkey 
+   WHERE STG.STG_BatchNo = @n_BatchNo
+   AND   STG.STG_Status  = '1'
+   AND   ( STG.Packkey IS NOT NULL AND ISNULL(RTRIM(STG.Packkey), '') <> '' )
+   AND   P.PackKey IS NULL
+
+   OPEN CUR_PACK
+
+   FETCH NEXT FROM CUR_PACK INTO @n_RowRefNo
+
+   WHILE @@FETCH_STATUS <> -1
+   BEGIN
+      BEGIN TRANSACTION;
+
+      UPDATE dbo.SCE_DL_SO_STG WITH (ROWLOCK)
+      SET STG_Status = '3'
+        , STG_ErrMsg = LTRIM(RTRIM(ISNULL(STG_ErrMsg, ''))) + '/Packkey not exists in Pack'
+      WHERE STG_BatchNo = @n_BatchNo
+      AND   STG_Status = '1'
+      AND   RowRefNo = @n_RowRefNo
+
+      IF @@ERROR <> 0
+      BEGIN
+         SET @n_Continue = 3;
+         SET @n_ErrNo = 68001;
+         SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                       + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100011_10)';
+         ROLLBACK;
+         GOTO STEP_999_EXIT_SP;
+      END;
+
+      COMMIT;
+
+      FETCH NEXT FROM CUR_PACK INTO @n_RowRefNo
+   END
+   CLOSE CUR_PACK
+   DEALLOCATE CUR_PACK
+   --WL01 E
+
+   DECLARE C_CHK CURSOR LOCAL FAST_FORWARD READ_ONLY FOR
+   SELECT ISNULL(RTRIM(Packkey), '')
+        , ISNULL(RTRIM(Storerkey), '')
+        , ISNULL(RTRIM(SKU), '')
+        , ISNULL(RTRIM(AltSKU), '')
+        , ISNULL(RTRIM(UOM), '')
+   FROM dbo.SCE_DL_SO_STG WITH (NOLOCK)
+   WHERE STG_BatchNo = @n_BatchNo
+   AND   STG_Status    = '1'
+   --AND   StorerKey IS NOT NULL
+   --AND   RTRIM(StorerKey) <> ''
+   GROUP BY ISNULL(RTRIM(Packkey), '')
+          , ISNULL(RTRIM(Storerkey), '')
+          , ISNULL(RTRIM(SKU), '')
+          , ISNULL(RTRIM(AltSKU), '')
+          , ISNULL(RTRIM(UOM), '');
+
+   OPEN C_CHK;
+   FETCH NEXT FROM C_CHK
+   INTO @c_Packkey
+      , @c_StorerKey
+      , @c_SKU
+      , @c_AltSKU
+      , @c_UOM;
+
+   WHILE @@FETCH_STATUS = 0
+   BEGIN
+      SET @c_ttlMsg = N'';
+
+      IF @c_Packkey = ''
+      BEGIN
+         BEGIN TRANSACTION;
+
+         UPDATE STG WITH (ROWLOCK)
+         SET STG.Packkey = S.PACKKey
+         FROM dbo.SCE_DL_SO_STG STG
+         INNER JOIN dbo.V_SKU   S WITH (NOLOCK)
+         ON  S.Sku        = STG.SKU
+         AND S.StorerKey = STG.Storerkey
+         WHERE STG.STG_BatchNo                = @n_BatchNo
+         AND   STG.STG_Status                   = '1'
+         AND   ISNULL(RTRIM(STG.Packkey), '')   = @c_Packkey
+         AND   ISNULL(RTRIM(STG.Storerkey), '') = @c_StorerKey
+         AND   ISNULL(RTRIM(STG.SKU), '')       = @c_SKU
+         AND   ISNULL(RTRIM(STG.AltSKU), '')    = @c_AltSKU
+         AND   ISNULL(RTRIM(STG.UOM), '')       = @c_UOM;
+
+         IF @@ERROR <> 0
+         BEGIN
+            SET @n_Continue = 3;
+            SET @n_ErrNo = 68001;
+            SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                            + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100011_10)';
+            ROLLBACK;
+            GOTO STEP_999_EXIT_SP;
+         END;
+
+         COMMIT;
+
+         SELECT @c_Packkey = PACKKey
+         FROM dbo.V_SKU WITH (NOLOCK)
+         WHERE StorerKey = RTRIM(@c_StorerKey)
+         AND   Sku         = @c_SKU;
+      END;
+      ELSE
+      BEGIN
+         IF NOT EXISTS (
+         SELECT 1
+         FROM dbo.V_SKU WITH (NOLOCK)
+         WHERE PACKKey = @c_Packkey
+         AND   StorerKey = @c_StorerKey
+         AND   Sku       = CASE WHEN @c_InParm2 = '1' THEN @c_SKU
+                                ELSE Sku
+                           END
+         AND   ALTSKU    = CASE WHEN @c_InParm2 = '2' THEN @c_AltSKU
+                                ELSE ALTSKU
+                           END
+         )
+         BEGIN
+            SET @c_ttlMsg = LTRIM(RTRIM(ISNULL(@c_ttlMsg, ''))) + N'/Packkey not exists in SKU ';
+            GOTO NEXTITEM;
+         END;
+      END;
+
+
+      IF @c_UOM <> ''
+      BEGIN
+         IF EXISTS (
+         SELECT 1
+         FROM dbo.V_PACK      P WITH (NOLOCK)
+         INNER JOIN dbo.V_SKU S
+         ON P.PackKey = S.PACKKey
+         WHERE S.StorerKey = @c_StorerKey
+         AND   S.Sku         = @c_SKU
+         AND   P.PackKey     = @c_Packkey
+         AND   P.PackUOM1    <> @c_UOM
+         AND   P.PackUOM2    <> @c_UOM
+         AND   P.PackUOM3    <> @c_UOM
+         AND   P.PackUOM4    <> @c_UOM
+         )
+         BEGIN
+            SET @c_ttlMsg = LTRIM(RTRIM(ISNULL(@c_ttlMsg, ''))) + N'/ UOM not exists ';
+         END;
+      END;
+      ELSE
+      BEGIN
+         BEGIN TRANSACTION;
+
+         UPDATE STG WITH (ROWLOCK)
+         SET STG.UOM = P.PackUOM3
+         FROM dbo.SCE_DL_SO_STG STG
+         INNER JOIN dbo.V_PACK  P WITH (NOLOCK)
+         ON P.PackKey = STG.Packkey
+         WHERE STG.STG_BatchNo                = @n_BatchNo
+         AND   STG.STG_Status                   = '1'
+         AND   ISNULL(RTRIM(STG.Packkey), '')   = @c_Packkey
+         AND   ISNULL(RTRIM(STG.Storerkey), '') = @c_StorerKey
+         AND   ISNULL(RTRIM(STG.SKU), '')       = @c_SKU
+         AND   ISNULL(RTRIM(STG.AltSKU), '')    = @c_AltSKU
+         AND   ISNULL(RTRIM(STG.UOM), '')       = @c_UOM;
+
+         IF @@ERROR <> 0
+         BEGIN
+            SET @n_Continue = 3;
+            SET @n_ErrNo = 68001;
+            SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                            + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100011_10)';
+            ROLLBACK;
+            GOTO STEP_999_EXIT_SP;
+         END;
+
+         COMMIT;
+      END;
+
+
+      NEXTITEM:
+      IF @c_ttlMsg <> ''
+      BEGIN
+         BEGIN TRANSACTION;
+
+         UPDATE dbo.SCE_DL_SO_STG WITH (ROWLOCK)
+         SET STG_Status = '3'
+           , STG_ErrMsg = LTRIM(RTRIM(ISNULL(STG_ErrMsg, ''))) + @c_ttlMsg
+         WHERE STG_BatchNo = @n_BatchNo
+         AND   STG_Status    = '1'
+         AND   Packkey       = @c_Packkey
+         AND   Storerkey     = @c_StorerKey
+         AND   SKU           = @c_SKU
+         AND   AltSKU        = @c_AltSKU
+         AND   UOM           = @c_UOM;
+
+         IF @@ERROR <> 0
+         BEGIN
+            SET @n_Continue = 3;
+            SET @n_ErrNo = 68001;
+            SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                            + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100011_10)';
+            ROLLBACK;
+            GOTO STEP_999_EXIT_SP;
+         END;
+
+         COMMIT;
+      END;
+
+      FETCH NEXT FROM C_CHK
+      INTO @c_Packkey
+         , @c_StorerKey
+         , @c_SKU
+         , @c_AltSKU
+         , @c_UOM;
+   END;
+
+   CLOSE C_CHK;
+   DEALLOCATE C_CHK;
+
+   QUIT:
+
+   STEP_999_EXIT_SP:
+
+   --WL01 S
+   IF CURSOR_STATUS('LOCAL', 'CUR_LOOP') IN (0 , 1)
+   BEGIN
+      CLOSE CUR_LOOP
+      DEALLOCATE CUR_LOOP   
+   END
+
+   IF CURSOR_STATUS('LOCAL', 'C_CHK') IN (0 , 1)
+   BEGIN
+      CLOSE C_CHK
+      DEALLOCATE C_CHK   
+   END
+   --WL01 E
+
+   IF @b_Debug = 1
+   BEGIN
+      SELECT '<<SUB-SP-RULES>> - [isp_SCE_DL_GENERIC_SO_RULES_100011_10] EXIT... ErrMsg : ' + ISNULL(RTRIM(@c_ErrMsg), '');
+   END;
+
+   IF @n_Continue = 1
+   BEGIN
+      SET @b_Success = 1;
+   END;
+   ELSE
+   BEGIN
+      SET @b_Success = 0;
+   END;
+END;
+GO

@@ -1,0 +1,10 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+CREATE   VIEW [dbo].[V_CartonTrack_Pool] AS
+SELECT *
+FROM [CartonTrack_Pool] WITH (NOLOCK)
+
+GO

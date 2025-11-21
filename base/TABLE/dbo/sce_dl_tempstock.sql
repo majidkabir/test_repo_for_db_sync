@@ -1,0 +1,30 @@
+CREATE TABLE [dbo].[sce_dl_tempstock]
+(
+    [RowRefNo] bigint IDENTITY(1,1) NOT NULL,
+    [StorerKey] nvarchar(15) NULL,
+    [SKU] nvarchar(20) NULL,
+    [ID] nvarchar(18) NULL,
+    [Loc] nvarchar(10) NULL,
+    [Qty] int NULL,
+    [Lottable01] nvarchar(18) NULL,
+    [Lottable02] nvarchar(18) NULL,
+    [Lottable03] nvarchar(18) NULL,
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [Sourcekey] nvarchar(20) NULL,
+    [Sourcetype] nvarchar(30) NULL,
+    [Lottable06] nvarchar(30) NULL,
+    [Lottable07] nvarchar(30) NULL,
+    [Lottable08] nvarchar(30) NULL,
+    [Lottable09] nvarchar(30) NULL,
+    [Lottable10] nvarchar(30) NULL,
+    [Lottable11] nvarchar(30) NULL,
+    [Lottable12] nvarchar(30) NULL,
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL,
+    [AddWho] nvarchar(128) NOT NULL,
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    CONSTRAINT [PK_SCE_DL_TEMPSTOCK] PRIMARY KEY ([RowRefNo])
+);
+GO

@@ -1,0 +1,31 @@
+CREATE TABLE [dbo].[ec_inventoryhold]
+(
+    [InventoryHoldKey] int IDENTITY(1,1) NOT NULL,
+    [Storerkey] nvarchar(18) NULL DEFAULT (' '),
+    [SKU] nvarchar(20) NULL DEFAULT (' '),
+    [SKU_DESCR] nvarchar(60) NULL,
+    [Lottable01] nvarchar(18) NULL DEFAULT (''),
+    [Lottable02] nvarchar(18) NULL DEFAULT (''),
+    [Lottable03] nvarchar(18) NULL DEFAULT (''),
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [Hold] bit NOT NULL,
+    [ReasonCode] nvarchar(10) NOT NULL DEFAULT (' '),
+    [Remark] nvarchar(255) NULL,
+    [DateOn] datetime NOT NULL DEFAULT (getdate()),
+    [WhoOn] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [DateOff] datetime NOT NULL DEFAULT (getdate()),
+    [WhoOff] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [Lottable06] nvarchar(30) NULL DEFAULT (''),
+    [Lottable07] nvarchar(30) NULL DEFAULT (''),
+    [Lottable08] nvarchar(30) NULL DEFAULT (''),
+    [Lottable09] nvarchar(30) NULL DEFAULT (''),
+    [Lottable10] nvarchar(30) NULL DEFAULT (''),
+    [Lottable11] nvarchar(30) NULL DEFAULT (''),
+    [Lottable12] nvarchar(30) NULL DEFAULT (''),
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL,
+    CONSTRAINT [PKEC_InventoryHold] PRIMARY KEY ([InventoryHoldKey])
+);
+GO

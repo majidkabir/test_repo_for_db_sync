@@ -1,0 +1,49 @@
+CREATE TABLE [dbo].[masterserialno]
+(
+    [MasterSerialNoKey] bigint IDENTITY(1,1) NOT NULL,
+    [LocationCode] nvarchar(10) NULL DEFAULT (''),
+    [UnitType] nvarchar(10) NULL DEFAULT (''),
+    [PartnerType] nvarchar(20) NULL DEFAULT (''),
+    [SerialNo] nvarchar(50) NOT NULL DEFAULT (''),
+    [ElectronicSN] nvarchar(50) NULL DEFAULT (''),
+    [Storerkey] nvarchar(15) NOT NULL DEFAULT (''),
+    [Sku] nvarchar(20) NOT NULL DEFAULT (''),
+    [ItemID] nvarchar(50) NULL DEFAULT (''),
+    [ItemDescr] nvarchar(100) NULL DEFAULT (''),
+    [ChildQty] int NULL DEFAULT ((0)),
+    [ParentSerialNo] nvarchar(50) NULL DEFAULT (''),
+    [ParentSku] nvarchar(20) NOT NULL DEFAULT (''),
+    [ParentItemID] nvarchar(50) NULL DEFAULT (''),
+    [ParentProdLine] nvarchar(50) NULL DEFAULT (''),
+    [VendorSerialNo] nvarchar(50) NULL DEFAULT (''),
+    [VendorLotNo] nvarchar(50) NULL DEFAULT (''),
+    [LotNo] nvarchar(20) NULL DEFAULT (''),
+    [Revision] nvarchar(10) NULL DEFAULT (''),
+    [CreationDate] datetime NULL,
+    [Source] nvarchar(10) NULL DEFAULT (''),
+    [Status] nvarchar(10) NULL DEFAULT ('0'),
+    [Attribute1] nvarchar(50) NULL DEFAULT (''),
+    [Attribute2] nvarchar(50) NULL DEFAULT (''),
+    [Attribute3] nvarchar(50) NULL DEFAULT (''),
+    [RequestID] int NULL DEFAULT ((0)),
+    [UserDefine01] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine02] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine03] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine04] datetime NULL,
+    [UserDefine05] datetime NULL,
+    [Addwho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [Adddate] datetime NULL DEFAULT (getdate()),
+    [Editwho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [Editdate] datetime NULL DEFAULT (getdate()),
+    [TrafficCop] nchar(1) NULL,
+    [ArchiveCop] nchar(1) NULL,
+    CONSTRAINT [PK_masterserialno] PRIMARY KEY ([MasterSerialNoKey])
+);
+GO
+
+CREATE INDEX [IDX_MasterSerialNo_Serailno] ON [dbo].[masterserialno] ([SerialNo], [Storerkey]);
+GO
+CREATE INDEX [IDX_MasterSerialNo_SkuParentSN] ON [dbo].[masterserialno] ([Storerkey], [Sku], [ParentSerialNo]);
+GO
+CREATE INDEX [IX_MasterSerialNo_ParentSerialNo] ON [dbo].[masterserialno] ([ParentSerialNo]);
+GO

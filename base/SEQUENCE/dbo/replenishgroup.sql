@@ -1,0 +1,9 @@
+CREATE SEQUENCE [dbo].[replenishgroup]
+    AS bigint
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 0
+    MAXVALUE 9999989999
+    CYCLE
+    CACHE 50;
+GO

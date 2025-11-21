@@ -1,0 +1,33 @@
+CREATE TABLE [rdt].[rdtcaseidcapturelog]
+(
+    [RowRef] int IDENTITY(1,1) NOT NULL,
+    [Mobile] int NOT NULL,
+    [StorerKey] nvarchar(15) NOT NULL,
+    [SKU] nvarchar(20) NOT NULL DEFAULT (''),
+    [CaseID] nvarchar(15) NOT NULL DEFAULT (''),
+    [Lottable01] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable02] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable03] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [Lottable06] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable07] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable08] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable09] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable10] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable11] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable12] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL,
+    [UserDefine01] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine02] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine03] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine04] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine05] nvarchar(30) NOT NULL DEFAULT (''),
+    [Barcode] nvarchar(MAX) NOT NULL DEFAULT (''),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    CONSTRAINT [PK_rdtCaseIDCaptureLog] PRIMARY KEY ([RowRef])
+);
+GO

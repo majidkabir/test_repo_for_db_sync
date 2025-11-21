@@ -1,0 +1,33 @@
+CREATE TABLE [dbo].[waveorderln]
+(
+    [Facility] nvarchar(5) NOT NULL DEFAULT (' '),
+    [WaveKey] nvarchar(10) NOT NULL,
+    [OrderKey] nvarchar(10) NOT NULL,
+    [OrderLineNumber] nvarchar(5) NOT NULL,
+    [Sku] nvarchar(20) NOT NULL DEFAULT (' '),
+    [StorerKey] nvarchar(15) NOT NULL DEFAULT (' '),
+    [OpenQty] int NOT NULL DEFAULT ((0)),
+    [QtyAllocated] int NOT NULL DEFAULT ((0)),
+    [QtyPicked] int NOT NULL DEFAULT ((0)),
+    [QtyReplenish] int NOT NULL DEFAULT ((0)),
+    [UOM] nvarchar(10) NOT NULL DEFAULT (' '),
+    [PackKey] nvarchar(10) NOT NULL DEFAULT (' '),
+    [Status] nvarchar(10) NOT NULL DEFAULT ('0'),
+    [Lottable01] nvarchar(18) NOT NULL DEFAULT (' '),
+    [Lottable02] nvarchar(18) NOT NULL DEFAULT (' '),
+    [Lottable03] nvarchar(18) NOT NULL DEFAULT (' '),
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [LoadKey] nvarchar(10) NULL DEFAULT (''),
+    [Lottable06] nvarchar(30) NULL DEFAULT (''),
+    [Lottable07] nvarchar(30) NULL DEFAULT (''),
+    [Lottable08] nvarchar(30) NULL DEFAULT (''),
+    [Lottable09] nvarchar(30) NULL DEFAULT (''),
+    [Lottable10] nvarchar(30) NULL DEFAULT (''),
+    [Lottable11] nvarchar(30) NULL DEFAULT (''),
+    [Lottable12] nvarchar(30) NULL DEFAULT (''),
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL
+);
+GO

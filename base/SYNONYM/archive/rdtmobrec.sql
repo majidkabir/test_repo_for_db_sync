@@ -1,0 +1,2 @@
+CREATE SYNONYM [archive].[rdtmobrec] FOR [GBRARCHIVE].[RDT ].[RDTMOBREC];
+GO

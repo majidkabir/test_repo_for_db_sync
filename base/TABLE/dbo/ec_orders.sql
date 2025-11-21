@@ -1,0 +1,57 @@
+CREATE TABLE [dbo].[ec_orders]
+(
+    [EC_OrderNo] bigint IDENTITY(1,1) NOT NULL,
+    [OrderKey] nvarchar(10) NULL DEFAULT (''),
+    [Facility] nvarchar(5) NULL DEFAULT (' '),
+    [StorerKey] nvarchar(15) NOT NULL DEFAULT (' '),
+    [ExternOrderKey] nvarchar(50) NOT NULL DEFAULT (' '),
+    [OrderDate] datetime NOT NULL DEFAULT (getdate()),
+    [DeliveryDate] datetime NOT NULL DEFAULT (getdate()),
+    [Priority] nvarchar(10) NOT NULL DEFAULT ('5'),
+    [ConsigneeKey] nvarchar(15) NOT NULL DEFAULT (' '),
+    [C_Contact1] nvarchar(30) NULL,
+    [C_Company] nvarchar(45) NULL,
+    [C_Address1] nvarchar(45) NULL,
+    [C_Address2] nvarchar(45) NULL,
+    [C_Address3] nvarchar(45) NULL,
+    [C_Address4] nvarchar(45) NULL,
+    [C_City] nvarchar(45) NULL,
+    [C_State] nvarchar(45) NULL,
+    [C_Zip] nvarchar(18) NULL,
+    [C_Country] nvarchar(30) NULL,
+    [C_ISOCntryCode] nvarchar(10) NULL,
+    [C_Phone1] nvarchar(18) NULL,
+    [C_Fax1] nvarchar(18) NULL,
+    [BuyerPO] nvarchar(20) NULL,
+    [PmtTerm] nvarchar(10) NULL,
+    [Status] nvarchar(10) NOT NULL DEFAULT ('0'),
+    [DischargePlace] nvarchar(30) NULL,
+    [DeliveryPlace] nvarchar(30) NULL,
+    [IntermodalVehicle] nvarchar(30) NOT NULL DEFAULT (' '),
+    [CountryOfOrigin] nvarchar(30) NULL,
+    [CountryDestination] nvarchar(30) NULL,
+    [Type] nvarchar(10) NOT NULL DEFAULT ('0'),
+    [Notes] nvarchar(MAX) NULL,
+    [UserDefine01] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine02] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine03] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine04] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine05] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine06] datetime NULL,
+    [UserDefine07] datetime NULL,
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    CONSTRAINT [PK_EC_Orders] PRIMARY KEY ([EC_OrderNo]),
+    CONSTRAINT [FK_EC_Orders_EC_Orders_Consignee] FOREIGN KEY ([ConsigneeKey]) REFERENCES [dbo].[STORER] ([StorerKey]),
+    CONSTRAINT [FK_EC_Orders_EC_Orders_StorerKey] FOREIGN KEY ([StorerKey]) REFERENCES [dbo].[STORER] ([StorerKey])
+);
+GO
+
+CREATE INDEX [IX_EC_Orders_ExtOrderKey] ON [dbo].[ec_orders] ([ExternOrderKey]);
+GO
+CREATE INDEX [IX_EC_Orders_OrderKey] ON [dbo].[ec_orders] ([OrderKey]);
+GO

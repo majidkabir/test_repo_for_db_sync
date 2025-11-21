@@ -1,0 +1,31 @@
+CREATE TABLE [dbo].[tms_shipment]
+(
+    [Rowref] int IDENTITY(1,1) NOT NULL,
+    [ShipmentGID] nvarchar(50) NOT NULL,
+    [VehicleLPN] nvarchar(150) NULL,
+    [EquipmentID] nvarchar(50) NOT NULL,
+    [DriveName] nvarchar(100) NULL,
+    [ShipmentPlannedStartDate] datetime NOT NULL,
+    [ShipmentPlannedEndDate] datetime NOT NULL,
+    [Route] nvarchar(150) NULL,
+    [ServiceProviderID] nvarchar(50) NOT NULL,
+    [ShipmentVolume] numeric(24, 6) NOT NULL,
+    [ShipmentWeight] numeric(24, 6) NOT NULL,
+    [ShipmentCartonCount] int NOT NULL,
+    [ShipmentPalletCount] int NOT NULL,
+    [OTMShipmentStatus] nvarchar(50) NOT NULL,
+    [Addwho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [Editwho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    [BookingNo] int NULL,
+    [Banner] nvarchar(100) NULL,
+    [SubBanner] nvarchar(100) NULL,
+    [Wave] nvarchar(20) NULL,
+    [ShipmentGroupProfile] nvarchar(100) NULL,
+    [ShipmentGroup] nvarchar(100) NULL,
+    [AppointmentID] nvarchar(20) NULL,
+    [Principal] nvarchar(90) NULL,
+    CONSTRAINT [PKTMS_Shipment] PRIMARY KEY ([Rowref])
+);
+GO

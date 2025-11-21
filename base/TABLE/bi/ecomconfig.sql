@@ -1,0 +1,30 @@
+CREATE TABLE [bi].[ecomconfig]
+(
+    [StorerKey] nvarchar(15) NOT NULL,
+    [Brand] nvarchar(50) NULL,
+    [Facility] nvarchar(5) NOT NULL,
+    [FacilityDesc] nvarchar(256) NOT NULL DEFAULT (''),
+    [IsActive] bit NOT NULL DEFAULT ((1)),
+    [OrdersForecast] int NOT NULL DEFAULT ((0)),
+    [OpsDays] int NOT NULL DEFAULT ((0)),
+    [PickHours] int NOT NULL DEFAULT ((0)),
+    [AllocHours] int NOT NULL DEFAULT ((0)),
+    [PresaleStart] datetime NULL,
+    [PromoStart] datetime NULL,
+    [CompletionDate] datetime NULL,
+    [HoursOverrun] int NOT NULL DEFAULT ((0)),
+    [SLADescription] nvarchar(250) NOT NULL DEFAULT (''),
+    [SLAMinimum] int NOT NULL DEFAULT ((0)),
+    [ShowPreSales] bit NOT NULL DEFAULT ((0)),
+    [DashboardDescription] nvarchar(4000) NOT NULL DEFAULT (''),
+    [ShowCourier] bit NOT NULL DEFAULT ((0)),
+    [UnitsForecast] int NOT NULL DEFAULT ((0)),
+    [DocType] nvarchar(1) NOT NULL DEFAULT ('E'),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [AddWho] sysname NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] sysname NOT NULL DEFAULT (suser_sname()),
+    CONSTRAINT [PK_eComConfig] PRIMARY KEY ([StorerKey], [Facility]),
+    CONSTRAINT [FK_eComConfig_FACILITY] FOREIGN KEY ([Facility]) REFERENCES [dbo].[FACILITY] ([Facility])
+);
+GO

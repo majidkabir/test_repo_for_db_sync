@@ -1,0 +1,33 @@
+CREATE TABLE [dbo].[apptid]
+(
+    [ApptId] nvarchar(10) NOT NULL,
+    [StartDateTime] datetime NULL,
+    [EndDateTime] datetime NULL,
+    [ApptType] nvarchar(5) NULL,
+    [Facility] nvarchar(5) NULL,
+    [Dock] nvarchar(10) NULL,
+    [ShipmentType] nvarchar(10) NULL,
+    [BookingDate] datetime NULL,
+    [DocumentNo] nvarchar(10) NULL,
+    [DocumentType] nvarchar(10) NULL,
+    [ContainerKey] nvarchar(18) NULL,
+    [ContainerType] nvarchar(20) NULL,
+    [CarrierKey] nvarchar(15) NULL,
+    [VehicleType] nvarchar(15) NULL,
+    [VehicleNo] nvarchar(18) NULL,
+    [ShippingLine] nvarchar(20) NULL,
+    [UserDefined1] nvarchar(10) NULL,
+    [UserDefined2] nvarchar(10) NULL,
+    [UserDefined3] nvarchar(10) NULL,
+    [UserDefined4] nvarchar(10) NULL,
+    [UserDefined5] nvarchar(10) NULL,
+    [Notes1] nvarchar(50) NULL,
+    [Notes2] nvarchar(50) NULL,
+    [Status] nvarchar(1) NULL,
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    CONSTRAINT [PKAPPTID] PRIMARY KEY ([ApptId])
+);
+GO

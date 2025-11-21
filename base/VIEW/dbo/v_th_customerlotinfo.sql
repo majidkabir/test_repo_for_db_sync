@@ -1,0 +1,8 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+CREATE VIEW V_TH_CustomerLotInfo
+AS Select * from  TH_CustomerLotInfo (NOLOCK)
+
+GO

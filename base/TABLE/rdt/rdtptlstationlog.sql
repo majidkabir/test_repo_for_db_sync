@@ -1,0 +1,40 @@
+CREATE TABLE [rdt].[rdtptlstationlog]
+(
+    [RowRef] int IDENTITY(1,1) NOT NULL,
+    [Station] nvarchar(10) NOT NULL,
+    [IPAddress] nvarchar(40) NOT NULL,
+    [Position] nvarchar(10) NOT NULL,
+    [LOC] nvarchar(10) NOT NULL DEFAULT (''),
+    [Method] nvarchar(1) NOT NULL DEFAULT (''),
+    [CartonID] nvarchar(20) NOT NULL DEFAULT (''),
+    [OrderKey] nvarchar(10) NOT NULL DEFAULT (''),
+    [LoadKey] nvarchar(10) NOT NULL DEFAULT (''),
+    [WaveKey] nvarchar(10) NOT NULL DEFAULT (''),
+    [PickSlipNo] nvarchar(10) NOT NULL DEFAULT (''),
+    [BatchKey] nvarchar(20) NOT NULL DEFAULT (''),
+    [ConsigneeKey] nvarchar(15) NOT NULL DEFAULT (''),
+    [ShipTo] nvarchar(15) NOT NULL DEFAULT (''),
+    [StorerKey] nvarchar(15) NOT NULL DEFAULT (''),
+    [MaxTask] int NOT NULL DEFAULT ((0)),
+    [UserDefine01] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine02] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine03] nvarchar(30) NOT NULL DEFAULT (''),
+    [SourceKey] nvarchar(20) NOT NULL DEFAULT (''),
+    [SourceType] nvarchar(30) NOT NULL DEFAULT (''),
+    [CreatedPTLTran] nvarchar(1) NOT NULL DEFAULT (''),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [SKU] nvarchar(20) NOT NULL DEFAULT (''),
+    [ItemClass] nvarchar(10) NOT NULL DEFAULT (''),
+    CONSTRAINT [PK_rdtPTLStationLog] PRIMARY KEY ([RowRef])
+);
+GO
+
+CREATE INDEX [IDX_rdtPTLStationLog_Loc] ON [rdt].[rdtptlstationlog] ([LOC]);
+GO
+CREATE INDEX [IDX_rdtPTLStationLog_Orderkey] ON [rdt].[rdtptlstationlog] ([OrderKey]);
+GO
+CREATE INDEX [IX_rdtPTLStationLog_Station_CartonID_Position] ON [rdt].[rdtptlstationlog] ([Station], [CartonID], [Position]);
+GO

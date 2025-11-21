@@ -1,0 +1,11 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+CREATE VIEW [dbo].[V_rdtSTDEventLog]   
+  
+ AS SELECT *   
+ FROM [rdt].[rdtSTDEventLog] WITH (NOLOCK) 
+
+GO

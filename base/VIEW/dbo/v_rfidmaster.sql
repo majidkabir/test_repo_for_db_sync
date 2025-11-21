@@ -1,0 +1,11 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+
+CREATE View dbo.V_RFIDMaster
+as
+SELECT * from dbo.RFIDMaster (NOLOCK)
+
+GO

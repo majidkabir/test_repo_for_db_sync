@@ -1,0 +1,32 @@
+CREATE TABLE [dbo].[sce_dl_skuinfo]
+(
+    [RowRefNo] bigint IDENTITY(1,1) NOT NULL,
+    [Storerkey] nvarchar(15) NULL DEFAULT (''),
+    [Sku] nvarchar(20) NULL DEFAULT (''),
+    [ExtendedField01] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField02] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField03] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField04] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField05] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField06] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField07] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField08] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField09] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField10] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField11] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField12] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField13] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField14] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField15] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField16] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField17] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField18] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField19] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField20] nvarchar(30) NULL DEFAULT (''),
+    [ExtendedField21] nvarchar(4000) NULL DEFAULT (''),
+    [ExtendedField22] nvarchar(4000) NULL DEFAULT (''),
+    [AddWho] nvarchar(128) NULL,
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    CONSTRAINT [PK_SCE_DL_SKUINFO] PRIMARY KEY ([RowRefNo])
+);
+GO

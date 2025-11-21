@@ -1,0 +1,407 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+/************************************************************************/
+/* Store Procedure:  isp_batching_task_pickslip_06                      */
+/* Creation Date:  14-JULY-2021                                         */
+/* Copyright: LF                                                        */
+/* Written by:CSCHONG                                                   */
+/*                                                                      */
+/* Purpose: 17471-CN_Converse Picklist(CR)                              */
+/*                                                                      */
+/* Input Parameters:                                                    */
+/*                                                                      */
+/* Output Parameters:  None                                             */
+/*                                                                      */
+/* Return Status:  None                                                 */
+/*                                                                      */
+/* Usage:                                                               */
+/*                                                                      */
+/* Local Variables:                                                     */
+/*                                                                      */
+/* Called By:r_dw_batching_task_pickslip_06                             */
+/*                                                                      */
+/* PVCS Version: 1.6                                                    */
+/*                                                                      */
+/* Version: 5.4                                                         */
+/*                                                                      */
+/* Data Modifications:                                                  */
+/*                                                                      */
+/* Updates:                                                             */
+/* Date        Author   Ver.  Purposes                                  */
+/************************************************************************/
+
+CREATE PROC [dbo].[isp_batching_task_pickslip_06] (
+            @c_Loadkey NVARCHAR(10)
+           ,@c_OrderCount NVARCHAR(10) = '9999'
+           ,@c_TaskBatchNo NVARCHAR(10) = ''
+           ,@c_Pickzone NVARCHAR(4000) = ''  
+           ,@c_Mode NVARCHAR(10) = ''  -- 1=Multi-S 4=Multi-M 5=BIG 9=Single
+           ,@c_ReportType NVARCHAR(10) = '0' -- 0=Main   1=Single & BIG   2=Multi S & M   3=Sub report of Multi S & M(pick detail)  4=Sub report of Multi S & M(zone summary) 
+           ,@c_ReGen NVARCHAR(10) = 'N' --Regnerate flag Y/N           -- 5=Sub report of Multi S & M(Conso Pick when MultiConsoTaskPick=1)                                             
+           ,@c_updatepick  NCHAR(1) = 'N' 
+ )
+ AS
+ BEGIN
+    SET NOCOUNT ON 
+    SET QUOTED_IDENTIFIER OFF 
+    SET CONCAT_NULL_YIELDS_NULL OFF
+    
+    DECLARE @b_Success             INT           
+           ,@n_Err                 INT           
+           ,@c_ErrMsg              NVARCHAR(255) 
+           ,@n_OrderCount          INT
+           ,@c_ZoneList            NVARCHAR(4000)  
+           ,@n_StartTCnt           INT
+           ,@n_Continue            INT
+           ,@c_Orderkey            NVARCHAR(10)
+           ,@c_Loc                 NVARCHAR(10)
+           ,@c_Sku                 NVARCHAR(20)
+           ,@n_Qty                 INT
+           ,@c_Storerkey           NVARCHAR(15)
+           ,@c_Facility            NVARCHAR(5)
+           ,@c_MultiConsoTaskPick  NVARCHAR(30)
+           ,@c_CallSource          NVARCHAR(10)
+           ,@n_StyleMaxLen         INT        
+           
+
+    DECLARE @c_LogicalLocation    NVARCHAR(18)
+           ,@c_SkuBarcode         NVARCHAR(22) 
+           ,@c_Descr              NVARCHAR(60)
+           ,@n_OrderQty           INT
+           ,@c_LogicalName        NVARCHAR(10)
+           ,@c_altsku             NVARCHAR(20)
+           ,@c_Showloadkeybarcode NVARCHAR(10)
+           ,@c_ECOM_SINGLE_Flag   NVARCHAR(1)
+           ,@n_CtnOPQTY           INT
+           ,@n_CtnPZone           INT
+           ,@c_WaveKey            NVARCHAR(10) = ''     
+           ,@c_UOM                NVARCHAR(500)= ''     
+          
+    SELECT @b_Success = 1, @n_Err = 0, @c_Errmsg = '', @c_ZoneList = '', @n_StartTCnt = @@TRANCOUNT, @n_Continue = 1  
+
+    SELECT @n_OrderCount = CONVERT(INT, @c_OrderCount)
+    
+    IF ISNULL(@c_PickZone,'') = ''
+       SET @c_PickZone = ''
+
+    IF ISNULL(@c_TaskBatchNo,'') = ''
+       SET @c_TaskBatchNo = ''
+
+    IF @c_Mode NOT IN('1','4','5','9')
+    BEGIN 
+       SELECT @n_Continue = 3  
+       SELECT @n_Err = 63200  
+       SELECT @c_ErrMsg='NSQL'+CONVERT(NVARCHAR(5),@n_Err)+': Invalid Mode. The value must be 1,4,5,9 (isp_batching_task_pickslip_06)' 
+       GOTO Quit
+    END
+
+    --CS01 START
+
+     SET @c_ECOM_SINGLE_Flag = ''
+     SET @n_CtnOPQTY = 0
+     SET @n_CtnPZone = 0
+
+     SELECT TOP 1 @c_ECOM_SINGLE_Flag = UPPER(OH.ECOM_SINGLE_Flag)
+     FROM ORDERS OH WITH (NOLOCK) 
+     WHERE OH.LoadKey=@c_Loadkey
+
+    SELECT @n_CtnOPQTY = COUNT(DISTINCT OD.openqty)
+    FROM ORDERS OH WITH (NOLOCK)
+    JOIN ORDERDETAIL OD WITH (NOLOCK) ON OD.OrderKey=OH.OrderKey
+    WHERE OH.LoadKey=@c_Loadkey
+
+       
+    IF @c_PickZone = 'ALL'  
+    BEGIN
+      SELECT @c_ZoneList = @c_ZoneList + RTRIM(Loc.PickZone) + ','
+      FROM ORDERS O (NOLOCK)
+      JOIN PICKDETAIL PD (NOLOCK) ON O.Orderkey = PD.Orderkey     
+      JOIN LOC (NOLOCK) ON PD.Loc = LOC.Loc
+      WHERE O.Loadkey = @c_Loadkey
+      GROUP BY LOC.PickZone
+      ORDER BY LOC.PickZone
+      
+      IF ISNULL(@c_ZoneList,'') <> ''
+      BEGIN
+          SET @c_ZoneList = LEFT(@c_ZoneList, LEN(RTRIM(@c_ZoneList)) - 1)
+          SET @c_PickZone = @c_ZoneList
+      END
+    END       
+
+    IF @c_ReportType IN ('2','3','5')
+    BEGIN
+       SELECT TOP 1 @c_Storerkey = Storerkey,
+                    @c_Facility = Facility
+       FROM ORDERS (NOLOCK) 
+       WHERE Loadkey = @c_Loadkey       
+             
+       SET @c_MultiConsoTaskPick = ''
+       Execute nspGetRight 
+       @c_facility,  
+       @c_StorerKey,              
+       '', --@c_Sku                    
+       'MultiConsoTaskPick', -- Configkey
+       @b_success            OUTPUT,
+       @c_MultiConsoTaskPick OUTPUT,
+       @n_err                OUTPUT,
+       @c_errmsg             OUTPUT              
+    END         
+    
+    IF @c_ReportType = '1'
+    BEGIN
+      
+       IF @c_ReGen = 'Y'
+          SET @c_CallSource = 'RPTREGEN'
+       ELSE
+          SET @c_CallSource = 'RPT'   
+
+       WHILE @@TRANCOUNT > 0
+         COMMIT
+      
+       BEGIN TRAN  
+       --SELECT '1'
+
+      EXEC ispOrderBatching
+          @c_LoadKey     = @c_LoadKey
+         ,@n_OrderCount  = @n_OrderCount  
+         ,@c_PickZones   = @c_PickZone
+         ,@c_Mode        = @c_Mode
+         ,@b_Success     = @b_Success   OUTPUT  
+         ,@n_Err         = @n_Err       OUTPUT  
+         ,@c_ErrMsg      = @c_ErrMsg    OUTPUT
+         ,@c_CallSource  = @c_CallSource
+         ,@c_WaveKey     = ''
+         ,@c_UOM         = ''
+         ,@c_updatepick  = @c_updatepick
+
+           
+       IF @b_Success = 0
+       BEGIN
+          ROLLBACK
+                   
+          SELECT @n_Continue = 3 
+          GOTO Quit
+       END  
+       
+       WHILE @@TRANCOUNT > 0
+          COMMIT
+    END              
+
+
+       SELECT OH.Storerkey AS Storerkey
+             ,OH.Orderkey AS Orderkey
+             ,''  AS OHUDF03
+             ,OH.ECOM_SINGLE_Flag AS ECOM_SINGLE_Flag 
+       INTO #TMP_TASKORD06
+       FROM ORDERS OH WITH (NOLOCK)
+       WHERE OH.loadkey = @c_Loadkey
+
+    SELECT PT.TaskBatchNo, 
+           PD.Orderkey,
+           PD.Notes, 
+           LP.Loadkey, 
+           SUM(PD.Qty) AS Qty,
+           L.PickZone,
+           --CASE WHEN ISNULL(CL.Long,'') <> '' THEN
+           --     CL.Long
+           --ELSE RIGHT(RTRIM(ISNULL(PD.Notes,'')),1) END AS ModeDesc,
+           ISNULL(Cl7.Description,'') AS ModeDESC ,
+           RIGHT(RTRIM(ISNULL(PD.Notes,'')),1) AS Mode,
+           PD.Loc,
+           L.LogicalLocation,
+           PD.Sku,
+           SKU.Descr,
+           PACK.Casecnt,    
+           CASE WHEN ISNULL(CL2.Code,'') <> '' THEN 'Y' ELSE 'N' END AS ShowStyleSize, 
+           ISNULL(SKU.Style,'') AS Style,  
+           ISNULL(SKU.Size,'') AS Size 
+         , AltSku = CASE WHEN @c_ReportType = '1' THEN SKU.AltSKU ELSE '' END   
+         , CASE WHEN ISNULL(CL3.Code,'') <> '' THEN 'Y' ELSE 'N' END AS Showloadkeybarcode  
+         , ISNULL(CL4.Short,'N') AS ShowCurrentDateTime 
+         , ISNULL(CL6.Short,'N') AS ShowVAS 
+         , CASE WHEN ISNULL(CL6.Short,'N') = 'N' THEN '' ELSE (SELECT MAX(ISNULL(ORDERINFO.ORDERINFO01,'')) + MAX(ISNULL(ORDERINFO.ORDERINFO02,'')) 
+                                                               FROM ORDERINFO (NOLOCK) WHERE ORDERINFO.Orderkey = PD.Orderkey) END AS VAS   
+         , CASE WHEN ISNULL(CL6.Short,'N') = 'N' THEN '' ELSE (SELECT MAX(ISNULL(Orders.Userdefine09,'') + ISNULL(Orders.Userdefine10,'')) FROM Orders (NOLOCK) WHERE Orders.Orderkey = PD.Orderkey) END AS Userdefine10   
+         , ISNULL(CL5.Short,'N') AS ShowSalesman   
+         , CASE WHEN ISNULL(CL5.Short,'N') = 'N' THEN '' ELSE (SELECT MAX(ISNULL(Orders.Salesman,'')) FROM Orders (NOLOCK) WHERE Orders.Orderkey = PD.Orderkey) END AS Salesman   
+         , ISNULL(PD.PickSlipNo,'') AS Pickslipno
+         , ISNULL(TSO06.OHUDF03,'') AS OHUDF03 
+        -- , ISNULL(Cl7.Description,'') AS ModeDESC 
+         , ISNULL(SKU.susr5,'') AS Susr5 --18
+         , substring(SKU.MANUFACTURERSKU,len(SKU.MANUFACTURERSKU)-3,4) AS MSKU
+         , CASE WHEN ISNUMERIC(SUBSTRING(PD.packkey,7,len(PD.packkey)-6)) = 1 THEN SUBSTRING(PD.packkey,7,len(PD.packkey)-6) ELSE 0 END AS PK
+         , ISNULL(TSO06.ECOM_SINGLE_Flag,'') AS ECOM_SINGLE_Flag
+    INTO #TMP_TASK
+    FROM LOADPLANDETAIL LP (NOLOCK)
+    JOIN PICKDETAIL PD (NOLOCK) ON LP.orderkey = PD.OrderKey
+    JOIN SKU (NOLOCK) ON PD.Storerkey = SKU.Storerkey AND PD.Sku = SKU.Sku
+    JOIN PACK (NOLOCK) ON SKU.Packkey = PACK.Packkey 
+    JOIN LOC L (NOLOCK) ON PD.Loc = L.Loc
+    JOIN PACKTASK PT (NOLOCK) ON PD.Orderkey = PT.Orderkey
+    LEFT JOIN CODELKUP CL ON RIGHT(RTRIM(ISNULL(PD.Notes,'')),1) = CL.Code AND CL.Listname = 'BATCHMODE' 
+    LEFT JOIN Codelkup CL2 (NOLOCK) ON (PD.Storerkey = CL2.Storerkey AND CL2.Code = 'SHOWSTYLESIZE' 
+                                              AND CL2.Listname = 'REPORTCFG' AND CL2.Long = 'r_dw_batching_task_pickslip_06' AND ISNULL(CL2.Short,'') <> 'N')  
+    LEFT JOIN Codelkup CL3 (NOLOCK) ON (PD.Storerkey = CL3.Storerkey AND CL3.Code = 'SHOWLOADKEYBARCODE' 
+                                              AND CL3.Listname = 'REPORTCFG' AND CL3.Long = 'r_dw_batching_task_pickslip_06' AND ISNULL(CL3.Short,'') <> 'N')  
+    LEFT JOIN Codelkup CL4 (NOLOCK) ON (PD.Storerkey = CL4.Storerkey AND CL4.Code = 'ShowCurrentDateTime' 
+                                              AND CL4.Listname = 'REPORTCFG' AND CL4.Long = 'r_dw_batching_task_pickslip_06' AND ISNULL(CL4.Short,'') <> 'N') 
+    LEFT JOIN Codelkup CL5 (NOLOCK) ON (PD.Storerkey = CL5.Storerkey AND CL5.Code = 'ShowSalesman' 
+                                              AND CL5.Listname = 'REPORTCFG' AND CL5.Long = 'r_dw_batching_task_pickslip_06' AND ISNULL(CL5.Short,'') <> 'N') 
+    LEFT JOIN Codelkup CL6 (NOLOCK) ON (PD.Storerkey = CL6.Storerkey AND CL6.Code = 'ShowVAS' 
+                                              AND CL6.Listname = 'REPORTCFG' AND CL6.Long = 'r_dw_batching_task_pickslip_06' AND ISNULL(CL6.Short,'') <> 'N') 
+    LEFT JOIN Codelkup CL7 (NOLOCK) ON CL7.listname = 'PLISTTYPE' AND CL7.storerkey = PD.Storerkey AND CL7.udf01 = @c_Mode
+    LEFT JOIN #TMP_TASKORD06 TSO06 ON TSO06.Storerkey = PD.Storerkey AND TSO06.Orderkey=PD.OrderKey
+    WHERE LP.Loadkey = @c_Loadkey
+    AND PT.TaskBatchNo = CASE WHEN @c_TaskBatchNo <> '' THEN @c_TaskBatchNo ELSE PT.TaskBatchNo END
+    AND (L.Pickzone IN (SELECT ColValue FROM dbo.fnc_DelimSplit(',',@c_PickZone)) OR @c_Pickzone='N')
+   -- AND RIGHT(RTRIM(ISNULL(PD.Notes,'')),1) = @c_Mode
+   -- AND 1 = CASE WHEN (@c_ReportType = '3' AND @c_MultiConsoTaskPick = '1') OR (@c_ReportType = '5' AND @c_MultiConsoTaskPick <> '1') THEN 2 ELSE 1 END
+    GROUP BY PT.TaskBatchNo, 
+             PD.Orderkey,
+             PD.Notes, 
+             LP.Loadkey,
+             L.PickZone,
+             CASE WHEN ISNULL(CL.Long,'') <> '' THEN
+                CL.Long
+             ELSE RIGHT(RTRIM(ISNULL(PD.Notes,'')),1) END,
+             RIGHT(RTRIM(ISNULL(PD.Notes,'')),1),
+             PD.Loc,
+             L.LogicalLocation,
+             PD.Sku,
+             SKU.Descr,
+             PACK.Casecnt,
+             CASE WHEN ISNULL(CL2.Code,'') <> '' THEN 'Y' ELSE 'N' END,           
+             ISNULL(SKU.Style,''),  
+             ISNULL(SKU.Size,'') 
+          ,  CASE WHEN @c_ReportType = '1' THEN SKU.AltSKU ELSE '' END   
+          ,  CASE WHEN ISNULL(CL3.Code,'') <> '' THEN 'Y' ELSE 'N' END  
+          ,  ISNULL(CL4.Short,'N') 
+          ,  ISNULL(CL6.Short,'N') 
+          ,  ISNULL(CL5.Short,'N')  
+          ,  ISNULL(PD.PickSlipNo,'')
+          ,  ISNULL(TSO06.OHUDF03,'')
+          ,  ISNULL(Cl7.Description,'')
+          ,  ISNULL(SKU.susr5,'')
+          ,  SUBSTRING(SKU.MANUFACTURERSKU,len(SKU.MANUFACTURERSKU)-3,4)  
+          ,  CASE WHEN ISNUMERIC(SUBSTRING(PD.packkey,7,len(PD.packkey)-6)) = 1 THEN SUBSTRING(PD.packkey,7,len(PD.packkey)-6) ELSE 0 END
+          ,  ISNULL(TSO06.ECOM_SINGLE_Flag,'')
+    
+ --SELECT * FROM #TMP_TASKORD06
+ --SELECT * FROM #TMP_TASK                    
+
+    IF @c_ReportType = '0'
+    BEGIN
+       SELECT DISTINCT TaskBatchNo, Mode, @c_Loadkey, @c_OrderCount, @c_PickZone,altsku
+       FROM #TMP_TASK
+       ORDER BY Mode, TaskBatchNo
+    END
+    
+    IF @c_ReportType = '1'
+    BEGIN      
+       
+       SELECT @n_StyleMaxLen = MAX(LEN(Style))
+       FROM #TMP_TASK
+                   
+       IF ISNULL(@n_StyleMaxLen,0) < 15
+          SET @n_StyleMaxLen = 15
+       
+       SELECT TaskBatchNo, 
+              Notes, 
+              Loadkey, 
+              SUM(Qty) AS Qty,
+              PickZone AS PickZone,
+              ModeDesc,              
+              Mode,
+              Loc,
+              LogicalLocation,
+              Sku,
+              CASE WHEN ShowStyleSize = 'Y' THEN 
+                  RTRIM(Style) + SPACE(@n_StyleMaxLen-LEN(Style)) + ' ' + RTRIM(Size)
+              ELSE
+                  Descr
+              END,
+              Casecnt,
+              (SELECT SUM(T.Qty) FROM #TMP_TASK T WHERE T.TaskBatchNo = #TMP_TASK.TaskBatchNo) AS TotalQty,
+              (SELECT COUNT(DISTINCT T.SKU) FROM #TMP_TASK T WHERE T.TaskBatchNo = #TMP_TASK.TaskBatchNo) AS TotalSku,
+              ShowStyleSize  
+            , Altsku              
+            , Showloadkeybarcode    
+            , ShowCurrentDateTime    
+            , ShowVAS      
+            , VAS           
+            , Userdefine10  
+            , ShowSalesman  
+            , '' AS Salesman 
+            , OHUDF03 AS OHUDF03
+            , PK   
+            , Susr5,Size ,MSKU,Pickslipno
+        FROM #TMP_TASK     
+        GROUP BY TaskBatchNo,
+                 Notes, 
+                 Loadkey, 
+                 PickZone,
+                 Mode,
+                 ModeDesc,
+                 Loc,
+                 LogicalLocation,
+                 Sku,
+                 CASE WHEN ShowStyleSize = 'Y' THEN 
+                      RTRIM(Style) + SPACE(@n_StyleMaxLen-LEN(Style)) + ' ' + RTRIM(Size)
+                 ELSE
+                     Descr
+                 END,
+                 Casecnt,
+                 ShowStyleSize 
+                , Altsku             
+                , Showloadkeybarcode 
+                , ShowCurrentDateTime  
+                , ShowVAS       
+                , VAS          
+                , Userdefine10 
+                , ShowSalesman  
+               -- , Salesman     
+                , OHUDF03  
+                , PK, Susr5,SIZE,msku,Pickslipno
+         ORDER BY TaskBatchNo, LogicalLocation, Loc, Sku                 
+    END
+           
+       
+
+Quit:
+
+    WHILE @@TRANCOUNT < @n_StartTCnt
+       BEGIN TRAN
+         
+    IF @n_Continue=3  -- Error Occured - Process And Return  
+    BEGIN  
+       SELECT @b_Success = 0  
+       IF @@TRANCOUNT = 1 AND @@TRANCOUNT > @n_StartTCnt  
+       BEGIN  
+          ROLLBACK TRAN  
+       END  
+       ELSE  
+       BEGIN  
+          WHILE @@TRANCOUNT > @n_StartTCnt  
+          BEGIN  
+             COMMIT TRAN  
+          END  
+       END  
+       EXECUTE nsp_logerror @n_Err, @c_ErrMsg, 'ispOrderBatching'  
+         --RAISERROR @n_Err @c_ErrMsg  
+         RAISERROR (@c_errmsg, 16, 1) WITH SETERROR    -- SQL2012
+       RETURN  
+    END  
+    ELSE  
+    BEGIN  
+       SELECT @b_Success = 1  
+       WHILE @@TRANCOUNT > @n_StartTCnt  
+       BEGIN  
+          COMMIT TRAN  
+       END  
+       RETURN  
+    END      
+END /* main procedure */
+
+GO

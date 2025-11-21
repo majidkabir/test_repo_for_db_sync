@@ -1,0 +1,48 @@
+CREATE TABLE [dbo].[channeltransferdetail]
+(
+    [ChannelTransferKey] nvarchar(10) NOT NULL,
+    [ChannelTransferLineNumber] nvarchar(5) NOT NULL DEFAULT (' '),
+    [ExternChannelTransferKey] nvarchar(20) NOT NULL DEFAULT (' '),
+    [ExternChannelTransferLineNo] nvarchar(5) NOT NULL DEFAULT (' '),
+    [FromStorerKey] nvarchar(15) NOT NULL DEFAULT (' '),
+    [FromSku] nvarchar(20) NOT NULL DEFAULT (' '),
+    [FromQty] int NOT NULL DEFAULT ((0)),
+    [FromPackKey] nvarchar(10) NOT NULL DEFAULT ('STD'),
+    [FromUOM] nvarchar(10) NOT NULL DEFAULT (' '),
+    [ToStorerKey] nvarchar(15) NOT NULL DEFAULT (' '),
+    [ToSku] nvarchar(20) NOT NULL DEFAULT (' '),
+    [ToQty] int NOT NULL DEFAULT ((0)),
+    [ToPackKey] nvarchar(10) NOT NULL DEFAULT ('STD'),
+    [ToUOM] nvarchar(10) NOT NULL DEFAULT (' '),
+    [Status] nvarchar(10) NOT NULL DEFAULT ((0)),
+    [FromChannel] nvarchar(20) NOT NULL DEFAULT (' '),
+    [ToChannel] nvarchar(20) NOT NULL DEFAULT (' '),
+    [FromChannel_ID] bigint NOT NULL DEFAULT ((0)),
+    [ToChannel_ID] bigint NOT NULL DEFAULT ((0)),
+    [FromC_Attribute01] nvarchar(30) NOT NULL DEFAULT (' '),
+    [FromC_Attribute02] nvarchar(30) NOT NULL DEFAULT (' '),
+    [FromC_Attribute03] nvarchar(30) NOT NULL DEFAULT (' '),
+    [FromC_Attribute04] nvarchar(30) NOT NULL DEFAULT (' '),
+    [FromC_Attribute05] nvarchar(30) NOT NULL DEFAULT (' '),
+    [ToC_Attribute01] nvarchar(30) NOT NULL DEFAULT (' '),
+    [ToC_Attribute02] nvarchar(30) NOT NULL DEFAULT (' '),
+    [ToC_Attribute03] nvarchar(30) NOT NULL DEFAULT (' '),
+    [ToC_Attribute04] nvarchar(30) NOT NULL DEFAULT (' '),
+    [ToC_Attribute05] nvarchar(30) NOT NULL DEFAULT (' '),
+    [UserDefine01] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine02] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine03] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine04] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine05] nvarchar(30) NULL DEFAULT (' '),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    CONSTRAINT [PKChannelTransferDetail] PRIMARY KEY ([ChannelTransferKey], [ChannelTransferLineNumber])
+);
+GO
+
+CREATE INDEX [IDX_ChannelTransferDetail_ExternKey] ON [dbo].[channeltransferdetail] ([FromStorerKey], [ExternChannelTransferKey], [ExternChannelTransferLineNo]);
+GO

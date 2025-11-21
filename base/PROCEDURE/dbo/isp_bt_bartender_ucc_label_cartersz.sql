@@ -1,0 +1,277 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+   
+/******************************************************************************/         
+/* Copyright: IDS                                                             */         
+/* Purpose: BarTender Filter by UCCNo,Storerkey                               */         
+/*                                                                            */         
+/* Modifications log:                                                         */         
+/*                                                                            */         
+/* Date       Rev  Author     Purposes                                        */         
+/* 2016-01-27 1.0  CSCHONG    Created (SOS 361969)                            */  
+/* 2016-02-23 1.1  CSCHONG    Add new field (CS02)                            */ 
+/* 2016-03-03 1.2  CSCHONG    change field logic (CS03)                       */ 
+/* 2016-08-09 1.3  CSCHONG    Remove SET ANSI_WARNINGS OFF (CS04)             */  
+/* 2020-02-13 1.4  CSCHONG    WMS-12084 add new field (CS04)                  */   
+/******************************************************************************/        
+          
+CREATE PROC [dbo].[isp_BT_Bartender_UCC_Label_CARTERSZ]               
+(  @c_Sparm01            NVARCHAR(250),      
+   @c_Sparm02            NVARCHAR(250),      
+   @c_Sparm03            NVARCHAR(250),      
+   @c_Sparm04            NVARCHAR(250),      
+   @c_Sparm05            NVARCHAR(250),      
+   @c_Sparm06            NVARCHAR(250),      
+   @c_Sparm07            NVARCHAR(250),      
+   @c_Sparm08            NVARCHAR(250),      
+   @c_Sparm09            NVARCHAR(250),      
+   @c_Sparm10            NVARCHAR(250),
+   @b_debug              INT = 0               
+)              
+AS              
+BEGIN              
+   SET NOCOUNT ON         
+   SET ANSI_NULLS OFF        
+   SET QUOTED_IDENTIFIER OFF         
+   SET CONCAT_NULL_YIELDS_NULL OFF        
+   --SET ANSI_WARNINGS OFF               --(CS04)       
+                      
+   DECLARE          
+      @c_CarrierKey        NVARCHAR(15),            
+      @c_CarrierName       NVARCHAR(30),           
+      @c_ExternReceiptKey  NVARCHAR(20),      
+      @c_SQL               NVARCHAR(4000),
+      @c_SQLSORT           NVARCHAR(4000),
+      @c_SQLJOIN           NVARCHAR(4000),
+      @n_TTLCopy           INT,
+      @c_ChkStatus         NVARCHAR(2),
+      @c_Uccno             NVARCHAR(80),
+      @c_storerkey         NVARCHAR(80),
+      @n_CntSKU            INT,
+      @c_lottable01        NVARCHAR(18),
+      @c_lottable02        NVARCHAR(18),
+      @c_Lottable09        NVARCHAR(30),
+      @c_lot               NVARCHAR(20),
+      @n_continue          INT,
+      @c_ExecStatements    NVARCHAR(4000),   
+      @c_ExecArguments     NVARCHAR(4000)    
+     
+
+    -- SET RowNo = 0     
+    SET @c_SQL = ''  
+    SET @n_TTLCopy = 1
+      
+    CREATE TABLE [#Result] (     
+      [ID]    [INT] IDENTITY(1,1) NOT NULL,                    
+      [Col01] [NVARCHAR] (80) NULL,      
+      [Col02] [NVARCHAR] (80) NULL,      
+      [Col03] [NVARCHAR] (80) NULL,      
+      [Col04] [NVARCHAR] (80) NULL,      
+      [Col05] [NVARCHAR] (80) NULL,      
+      [Col06] [NVARCHAR] (80) NULL,      
+      [Col07] [NVARCHAR] (80) NULL,      
+      [Col08] [NVARCHAR] (80) NULL,      
+      [Col09] [NVARCHAR] (80) NULL,      
+      [Col10] [NVARCHAR] (80) NULL,      
+      [Col11] [NVARCHAR] (80) NULL,      
+      [Col12] [NVARCHAR] (80) NULL,      
+      [Col13] [NVARCHAR] (80) NULL,      
+      [Col14] [NVARCHAR] (80) NULL,      
+      [Col15] [NVARCHAR] (80) NULL,      
+      [Col16] [NVARCHAR] (80) NULL,      
+      [Col17] [NVARCHAR] (80) NULL,      
+      [Col18] [NVARCHAR] (80) NULL,      
+      [Col19] [NVARCHAR] (80) NULL,      
+      [Col20] [NVARCHAR] (80) NULL,      
+      [Col21] [NVARCHAR] (80) NULL,      
+      [Col22] [NVARCHAR] (80) NULL,      
+      [Col23] [NVARCHAR] (80) NULL,      
+      [Col24] [NVARCHAR] (80) NULL,      
+      [Col25] [NVARCHAR] (80) NULL,      
+      [Col26] [NVARCHAR] (80) NULL,      
+      [Col27] [NVARCHAR] (80) NULL,      
+      [Col28] [NVARCHAR] (80) NULL,      
+      [Col29] [NVARCHAR] (80) NULL,      
+      [Col30] [NVARCHAR] (80) NULL,      
+      [Col31] [NVARCHAR] (80) NULL,      
+      [Col32] [NVARCHAR] (80) NULL,      
+      [Col33] [NVARCHAR] (80) NULL,      
+      [Col34] [NVARCHAR] (80) NULL,      
+      [Col35] [NVARCHAR] (80) NULL,      
+      [Col36] [NVARCHAR] (80) NULL,      
+      [Col37] [NVARCHAR] (80) NULL,      
+      [Col38] [NVARCHAR] (80) NULL,      
+      [Col39] [NVARCHAR] (80) NULL,      
+      [Col40] [NVARCHAR] (80) NULL,      
+      [Col41] [NVARCHAR] (80) NULL,      
+      [Col42] [NVARCHAR] (80) NULL,      
+      [Col43] [NVARCHAR] (80) NULL,      
+      [Col44] [NVARCHAR] (80) NULL,      
+      [Col45] [NVARCHAR] (80) NULL,      
+      [Col46] [NVARCHAR] (80) NULL,      
+      [Col47] [NVARCHAR] (80) NULL,      
+      [Col48] [NVARCHAR] (80) NULL,      
+      [Col49] [NVARCHAR] (80) NULL,      
+      [Col50] [NVARCHAR] (80) NULL,     
+      [Col51] [NVARCHAR] (80) NULL,      
+      [Col52] [NVARCHAR] (80) NULL,      
+      [Col53] [NVARCHAR] (80) NULL,      
+      [Col54] [NVARCHAR] (80) NULL,      
+      [Col55] [NVARCHAR] (80) NULL,      
+      [Col56] [NVARCHAR] (80) NULL,      
+      [Col57] [NVARCHAR] (80) NULL,      
+      [Col58] [NVARCHAR] (80) NULL,      
+      [Col59] [NVARCHAR] (80) NULL,      
+      [Col60] [NVARCHAR] (80) NULL     
+     )     
+
+   IF @b_debug='1'
+   BEGIN
+     PRINT 'Start'
+   END   
+
+  SET @c_SQLJOIN = +' SELECT DISTINCT UCC.UCCNo,S.STYLE,S.Color,S.MEASUREMENT,S.Size,'    
+             + CHAR(13) +   
+             +' S.DESCR,(UCC.QTY*(CONVERT(FLOAT,S.BUSR1))),UPC.UPC,LOTT.Lottable09,LOTT.Lottable01,'  
+             + CHAR(13) +  
+             +' LOTT.Lottable02,UCC.Storerkey,UCC.Qty,'''','''','''','''','''','''','''', '     --CS04
+             + CHAR(13) +  
+             +' '''','''','''','''','''','''','''','''','''','''', '   
+             + CHAR(13) +  
+             +' '''','''','''','''','''','''','''','''','''','''','   
+             + CHAR(13) +  
+             +' '''','''','''','''','''','''','''','''','''','''', '   
+             + CHAR(13) +   
+             +' '''','''','''','''','''','''','''','''','''','''' '   
+             + CHAR(13) +  
+             + ' FROM UCC UCC WITH (NOLOCK) '  
+             + ' JOIN SKU S WITH (NOLOCK) ON S.SKU = UCC.SKU AND S.Storerkey = UCC.Storerkey'
+             + ' LEFT JOIN UPC UPC WITH (NOLOCK) ON UPC.SKU = UCC.SKU AND UPC.Storerkey = UCC.Storerkey '
+             + ' LEFT JOIN LOTATTRIBUTE LOTT WITH (NOLOCK) ON LOTT.Lot = UCC.Lot'
+             + ' WHERE UCC.UCCNo = @c_Sparm01  '
+             + ' AND UCC.Storerkey=  @c_Sparm02 '
+   
+            IF @b_debug='1'
+            BEGIN
+               PRINT @c_SQLJOIN  
+            END        
+      
+     SET @c_SQL='INSERT INTO #Result (Col01,Col02,Col03,Col04,Col05, Col06,Col07,Col08,Col09'  + CHAR(13) +   
+             +',Col10,Col11,Col12,Col13,Col14,Col15,Col16,Col17,Col18,Col19,Col20,Col21,Col22'  + CHAR(13) +   
+             +',Col23,Col24,Col25,Col26,Col27,Col28,Col29,Col30,Col31,Col32,Col33,Col34' + CHAR(13) +   
+             +',Col35,Col36,Col37,Col38,Col39,Col40,Col41,Col42,Col43,Col44'  + CHAR(13) +   
+             +',Col45,Col46,Col47,Col48,Col49,Col50,Col51,Col52,Col53,Col54'+ CHAR(13) +   
+             + ',Col55,Col56,Col57,Col58,Col59,Col60) '  
+
+     SET @c_SQL = @c_SQL + @c_SQLJOIN
+
+     -- EXEC sp_executesql @c_SQL  
+
+     SET @c_ExecArguments = N'@c_Sparm01           NVARCHAR(80)'    
+                          + ', @c_Sparm02           NVARCHAR(80) '                      
+                         
+      EXEC sp_ExecuteSql     @c_SQL     
+                           , @c_ExecArguments    
+                           , @c_Sparm01   
+                           , @c_Sparm02   
+      IF @b_debug=1
+      BEGIN  
+         PRINT @c_SQL  
+      END
+
+   DECLARE CUR_RESULT CURSOR LOCAL FAST_FORWARD READ_ONLY FOR 
+   SELECT DISTINCT Col01,col12
+   FROM #Result
+   WHERE Col01 = @c_Sparm01
+   AND Col12 = @c_Sparm02
+
+   OPEN CUR_RESULT   
+     
+   FETCH NEXT FROM CUR_RESULT INTO @c_Uccno,@c_Storerkey    
+     
+   WHILE @@FETCH_STATUS <> -1  
+   BEGIN   
+
+   SET @n_CntSKU =1
+   SET @c_lot = ''
+   SET @c_lottable01 = ''
+   SET @c_lottable02 = ''
+   SET @c_lottable09 = ''
+
+   SELECT @n_CntSKU = COUNT(1)
+   FROM UCC WITH (NOLOCK)
+   WHERE UCCNo = @c_Uccno
+   AND Storerkey = @c_Storerkey 
+
+
+   SELECT @c_lot = ISNULL(Lot,'')
+   FROM UCC WITH (NOLOCK)
+   WHERE UCCNo = @c_Uccno
+   AND Storerkey = @c_Storerkey
+
+
+   IF @c_lot = ''
+   BEGIN
+      
+      SELECT @c_lottable01 = Lottable01
+            ,@c_lottable02 = Lottable02
+            ,@c_lottable09 = ExternPokey
+      FROM  PODETAIL WITH (NOLOCK)
+      WHERE userdefine01 = @c_Uccno
+
+       UPDATE #Result
+       SET col09 = @c_lottable09,
+           Col10 = @c_lottable01,
+           col11 = @c_lottable02
+       WHERE Col01 =@c_uccno
+       AND col12 = @c_storerkey
+
+         IF @@ERROR <> 0            
+         BEGIN              
+            SET @n_continue = 3            
+            ROLLBACK TRAN            
+            GOTO EXIT_SP            
+         END 
+        
+   END
+    
+  IF @n_Cntsku > 1
+  BEGIN
+      UPDATE #Result
+      SET Col01 = '',
+          Col02 = '',
+          Col03 = '',
+          Col04 = '',
+          Col05 = '',
+          Col06 = '',
+          Col07 = 'mixed',
+          Col08 = '',
+          Col13 = 'mixed'         --CS04
+      WHERE Col01 =@c_uccno
+      AND col12 = @c_storerkey
+
+      IF @@ERROR <> 0            
+      BEGIN              
+         SET @n_continue = 3            
+         ROLLBACK TRAN            
+         GOTO EXIT_SP            
+      END 
+  END
+  
+   FETCH NEXT FROM CUR_RESULT INTO @c_Uccno,@c_Storerkey  
+   END   
+
+   CLOSE CUR_RESULT                 
+   DEALLOCATE CUR_RESULT 
+   
+   SELECT * FROM #Result WITH (NOLOCK)
+
+   EXIT_SP:       
+                               
+   END -- procedure     
+
+
+GO

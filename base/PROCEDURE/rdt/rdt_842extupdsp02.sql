@@ -1,0 +1,1844 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+/************************************************************************/  
+/* Store procedure: rdt_842ExtUpdSP02                                   */  
+/* Copyright      : LF                                                  */  
+/*                                                                      */  
+/* Purpose: MACY DTC Logic                                              */  
+/*                                                                      */  
+/* Modifications log:                                                   */  
+/* Date        Rev  Author   Purposes                                   */  
+/* 2016-09-19  1.0  ChewKP   #WMS-321 Created                           */  
+/* 2017-09-25  1.1  ChewKP   WMS-3042 - Changes on Printing (ChewKP01)  */
+/* 2021-04-16  1.2  James    WMS-16024 Standarized use of TrackingNo    */
+/*                           (james01)                                  */
+/************************************************************************/  
+  
+CREATE PROC [RDT].[rdt_842ExtUpdSP02] (  
+   @nMobile        INT,              
+   @nFunc          INT,              
+   @cLangCode      NVARCHAR(3),      
+   @nStep          INT,              
+   @cUserName      NVARCHAR( 18),     
+   @cFacility      NVARCHAR( 5),      
+   @cStorerKey     NVARCHAR( 15),     
+   @cDropID        NVARCHAR( 20),     
+   @cSKU           NVARCHAR( 20),     
+   @cOption        NVARCHAR( 1),      
+   @cOrderKey      NVARCHAR( 10) OUTPUT,    
+   @cTrackNo       NVARCHAR( 20) OUTPUT,    
+   @cCartonType    NVARCHAR( 10) OUTPUT, 
+   @cWeight        NVARCHAR( 20) OUTPUT,   
+   @cTaskStatus    NVARCHAR( 20) OUTPUT,   
+   @cTTLPickedQty  NVARCHAR( 10) OUTPUT, 
+   @cTTLScannedQty NVARCHAR( 10) OUTPUT, 
+   @nErrNo         INT OUTPUT,    
+   @cErrMsg        NVARCHAR( 20) OUTPUT  
+) AS  
+BEGIN  
+   SET NOCOUNT ON  
+   SET ANSI_NULLS OFF  
+   SET QUOTED_IDENTIFIER OFF  
+   SET CONCAT_NULL_YIELDS_NULL OFF  
+  
+   DECLARE @nTranCount        INT  
+          ,@nSUM_PackQTY      INT  
+          ,@nSUM_PickQTY      INT  
+          ,@bsuccess          INT  
+          ,@nCartonNo         INT  
+          ,@cLabelLine        NVARCHAR( 5)  
+          ,@cLabelNo          NVARCHAR(20)  
+          ,@cPackSku          NVARCHAR(20)  
+          ,@nPackQty          INT  
+          ,@nTotalPackQty     INT  
+          ,@nTotalPickQty     INT  
+          ,@nTTL_PickedQty    INT  
+          ,@nTTL_PackedQty    INT  
+          ,@cDropIDType       NVARCHAR(10)  
+          ,@cGenTrackNoSP     NVARCHAR(30)  
+          ,@cGenLabelNoSP     NVARCHAR(30)  
+          ,@cExecStatements   NVARCHAR(4000)  
+          ,@cExecArguments    NVARCHAR(4000)  
+          ,@cRDTBartenderSP   NVARCHAR(30)  
+          ,@cLabelPrinter     NVARCHAR(10)  
+          ,@cPaperPrinter     NVARCHAR(10)  
+          ,@cDataWindow       NVARCHAR(50)  
+          ,@cTargetDB         NVARCHAR(20)  
+          ,@cOrderType        NVARCHAR(10)  
+          ,@cShipperKey       NVARCHAR(10)  
+          ,@cPrinter02        NVARCHAR(10)  
+          ,@cBrand01          NVARCHAR(10)  
+          ,@cBrand02          NVARCHAR(10)  
+          ,@cPrinter01        NVARCHAR(10)  
+          ,@cSectionKey       NVARCHAR(10)  
+          ,@cSOStatus         NVARCHAR(10)  
+          ,@cPickSlipNo       NVARCHAR(10)
+          ,@cLoadKey          NVARCHAR(10)
+          ,@nTotalScannedQty  INT
+          ,@nTotalPickedQty   INT
+          ,@nRowRef           INT
+          ,@cPostDataCapture  NVARCHAR(5)
+          --,@nTotalPickedQty   INT
+          --,@nTTLScannedQty    INT
+          ,@cBatchKey         NVARCHAR(10) 
+          ,@cToteOrderKey     NVARCHAR(10) 
+          ,@nDropIDCount      INT
+          ,@cExternOrderKey   NVARCHAR(30)
+
+   DECLARE  @fCartonWeight       FLOAT
+           ,@fCartonLength       FLOAT
+           ,@fCartonHeight       FLOAT
+           ,@fCartonWidth        FLOAT
+           ,@fStdGrossWeight     FLOAT
+           ,@fCartonTotalWeight  FLOAT
+           ,@fCartonCube         FLOAT
+           ,@nTotalPackedQty     INT
+           ,@cManifestDataWindow NVARCHAR(50) 
+           ,@nMaxCartonNo        INT
+           ,@nMinCartonNo        INT
+           ,@fTTLWeight          FLOAT
+           --,@nPackQTY            INT
+           ,@nPickQty            INT
+           ,@cDropOrderKey       NVARCHAR(10) 
+           ,@cFilePath           NVARCHAR( 30)       
+           ,@cPrintFilePath      NVARCHAR(100)      
+           ,@cPrintCommand       NVARCHAR(MAX)    
+           ,@cWinPrinter         NVARCHAR(128)  
+           ,@cPrinterName        NVARCHAR(100)   
+           ,@cFileName           NVARCHAR( 50)          
+  
+   SET @nErrNo   = 0  
+   SET @cErrMsg  = ''  
+
+  
+  
+   SET @nTranCount = @@TRANCOUNT  
+  
+   BEGIN TRAN  
+   SAVE TRAN rdt_842ExtUpdSP02  
+  
+   IF @nStep = 1 
+   BEGIN
+      
+      SET @cOrderKey = '' 
+
+      SELECT   @cPickSlipNo = PickSlipNo
+             , @cDropIDType = DropIDType
+             , @cLoadKey    = LoadKey
+      FROM dbo.DropID WITH (NOLOCK)
+      WHERE DropID = @cDropID
+      AND Status = '5'
+      
+      EXECUTE dbo.nspg_GetKey  
+               'RDTECOMM',  
+               10,  
+               @cBatchKey  OUTPUT,  
+               @bsuccess   OUTPUT,  
+               @nerrNo     OUTPUT,  
+               @cerrmsg    OUTPUT  
+      
+      
+      IF NOT EXISTS (SELECT 1 FROM dbo.PickDetail WITH (NOLOCK)
+                     WHERE StorerKey = @cStorerKey 
+                     AND DropID = @cDropID
+                     AND CASEID = '' 
+                     AND Status = '5' ) 
+      BEGIN
+            --ROLLBACK TRAN
+            SET @nErrNo = 101516
+            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- 'InvDropID'
+            GOTO ROLLBACKTRAN
+      END           
+      
+      
+      UPDATE rdt.rdtECOMMLOG WITH (ROWLOCK) 
+      SET Status = '9'
+      , ErrMsg = 'CLEAN UP PACK'
+      WHERE ToteNo = @cDropID
+      AND Status < '9'
+      --AND AddWho <> @cUserName
+      
+      IF @@ERROR <> 0 
+      BEGIN
+         --ROLLBACK TRAN
+         SET @nErrNo = 101518
+         SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- 'UpdEcommFail'
+         GOTO ROLLBACKTRAN
+      END          
+      
+      IF @cDropIDType = 'MULTIS'
+      BEGIN
+         SET @cDropOrderKey = ''
+         
+         SELECT Top 1 @cDropOrderKey = PD.OrderKey 
+         FROM dbo.PickDetail PD WITH (NOLOCK)
+         INNER JOIN dbo.Orders O WITH (NOLOCK) ON O.OrderKey = PD.OrderKey 
+         WHERE PD.StorerKey =  @cStorerKey
+         AND PD.DropID = @cDropID
+         AND PD.Status < '9' 
+         AND O.LoadKey = @cLoadKey 
+         Order by PD.Editdate Desc
+         
+         IF EXISTS ( SELECT 1 FROM dbo.PickDetail WITH (NOLOCK) 
+                     WHERE StorerKey = @cStorerKey
+                     AND OrderKey = @cDropOrderKey
+                     AND Status < '5' ) 
+         BEGIN
+            SET @nErrNo = 101525
+            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- 'PickNotComplete'
+            GOTO ROLLBACKTRAN
+         END 
+         
+         SET @nDropIDCount = 0 
+         
+         SELECT Top 1 @cToteOrderKey = OrderKey 
+         FROM dbo.PickDetail WITH (NOLOCK) 
+         WHERE StorerKey = @cStorerKey 
+         AND DropID = @cDropID
+         AND CASEID = '' 
+         AND Status = '5'
+         
+         SELECT @nDropIDCount = Count(DISTINCT DropID ) 
+         FROM dbo.PickDetail WITH (NOLOCK) 
+         WHERE StorerKey = @cStorerKey 
+         AND OrderKey = @cToteOrderKey
+         AND CASEID = '' 
+         AND Status = '5'
+         
+         
+      END
+      ELSE 
+      BEGIN
+         SET @nDropIDCount = 1 
+      END
+      
+      IF @nDropIDCount = 1 
+      BEGIN
+         
+         
+          /****************************
+          INSERT INTO rdtECOMMLog
+         ****************************/
+         INSERT INTO rdt.rdtECOMMLog(Mobile, ToteNo, Orderkey, Sku, DropIDType, ExpectedQty, ScannedQty, AddWho, AddDate, EditWho, EditDate, BatchKey)
+         SELECT @nMobile, @cDropID, PK.Orderkey, PK.SKU, @cDropIDType, SUM(PK.Qty), 0, @cUserName, GETDATE(), @cUserName, GETDATE(), @cBatchKey 
+         FROM dbo.PICKDETAIL PK WITH (NOLOCK)
+         JOIN dbo.Orders O WITH (NOLOCK) ON O.Orderkey = PK.Orderkey
+         WHERE PK.DROPID = @cDropID
+           AND (PK.Status IN ('3', '5') OR PK.ShipFlag = 'P')       
+           AND PK.CaseID = ''
+           AND O.Type IN  ( SELECT CL.Code FROM dbo.CodeLKUP CL WITH (NOLOCK) 
+                           WHERE CL.ListName = 'ECOMTYPE'
+                           AND CL.StorerKey = CASE WHEN CL.StorerKey = '' THEN '' ELSE O.StorerKey END) 
+           AND PK.Qty > 0 -- SOS# 329265
+           AND O.SOStatus NOT IN ( 'PENDPACK', 'HOLD', 'PENDCANC' ) 
+         GROUP BY PK.OrderKey, PK.SKU
+   
+         IF @@ROWCOUNT = 0 -- No data inserted
+         BEGIN
+            --ROLLBACK TRAN
+            SET @nErrNo = 101501
+            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- 'NoRecToProcess'
+            GOTO ROLLBACKTRAN
+         END
+      END 
+      SET @nTotalScannedQty = 0
+--      SELECT @nTotalScannedQty = SUM(QTY)
+--      FROM dbo.PickDetail PD WITH (NOLOCK)
+--      INNER JOIN dbo.PickHeader PH WITH (NOLOCK) ON PH.OrderKey = PD.OrderKey
+--      INNER JOIN dbo.Orders O WITH (NOLOCK) ON O.OrderKey = PH.OrderKey
+--      WHERE PD.DropID = @cDropID
+--      AND (PD.Status IN  ('3','5') OR PD.ShipFlag = 'P')  
+--      AND PD.CaseID <> ''
+--      AND O.LoadKey = @cLoadKey
+--      AND O.SOStatus NOT IN ( 'PENDPACK', 'HOLD', 'PENDCANC' ) 
+--      AND PH.PickHeaderKey = @cPickSlipNo 
+      
+      --SELECT @nTotalScannedQty = SUM(ScannedQty) 
+      --FROM rdt.rdtECOMMLog WITH (NOLOCK)
+      --WHERE ToteNo = @cDropID
+      --AND Status = '9'
+      --AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+      --AND AddWho = @cUserName
+
+      SELECT @nTotalPickedQty  = SUM(ExpectedQty)
+      FROM rdt.rdtECOMMLog WITH (NOLOCK)
+      WHERE ToteNo = @cDropID
+      AND Status = '0'
+      AND OrderKey = CASE WHEN ISNULL(@cOrderKey,'')  = '' THEN OrderKey ELSE @cOrderKey END
+      AND AddWho = @cUserName
+      AND Mobile = @nMobile
+
+            
+      SELECT @cOrderKey = OrderKey 
+      FROM rdt.rdtEcommLog WITH (NOLOCK)
+      WHERE ToteNo = @cDropID 
+      AND Status = '0' 
+      AND AddWho = @cUserName
+      AND Mobile = @nMobile
+
+      
+      
+      SET @cOrderKey      = CASE WHEN @cDropIDType = 'MULTIS' THEN @cOrderKey ELSE '' END
+      SET @cTrackNo       = ''    
+      SET @cCartonType    = ''    
+      SET @cWeight        = ''    
+      SET @cTaskStatus    = CASE WHEN @nDropIDCount > 1 THEN '1' ELSE '9' END
+      SET @cTTLPickedQty  = ISNULL(@nTotalPickedQty,0) 
+      SET @cTTLScannedQty = '0'
+           
+      
+   END
+  
+   IF @nStep = 2     
+   BEGIN  
+      
+      SET @cOrderKey      = ''
+      SET @cTrackNo       = ''    
+      SET @cCartonType    = ''    
+      SET @cWeight        = ''    
+      SET @cTaskStatus    = ''
+      SET @cTTLPickedQty  = ''
+      SET @cTTLScannedQty = ''
+      
+  
+      SET @cGenLabelNoSP = rdt.RDTGetConfig( @nFunc, 'GenLabelNo', @cStorerkey)  
+  
+      -- check if sku exists in tote  
+      IF NOT EXISTS (SELECT 1 FROM rdt.rdtECOMMLog ECOMM WITH (NOLOCK)  
+                      WHERE ToteNo = @cDropID  
+                      AND SKU = @cSKU  
+                      AND AddWho = @cUserName  
+                      AND Status IN ('0', '1') )  
+      BEGIN  
+          SET @nErrNo = 101502  
+          SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --SKuNotIntote  
+          GOTO RollBackTran  
+      END  
+  
+      IF EXISTS (SELECT 1 FROM rdt.rdtECOMMLog ECOMM WITH (NOLOCK) 
+                 GROUP BY ToteNo, SKU , Status , AddWho 
+                     HAVING ToteNo = @cDropID  
+                     --AND Orderkey = @cOrderkey  
+                     AND SKU = @cSKU  
+                     AND SUM(ExpectedQty) < SUM(ScannedQty) + 1 
+                     AND Status < '5'  
+                     AND AddWho = @cUserName)  
+      BEGIN  
+         SET @nErrNo = 101503  
+         SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --QtyExceeded  
+         GOTO RollBackTran  
+      END  
+  
+  
+
+      /****************************  
+       CREATE PACK DETAILS  
+      ****************************/  
+      -- check is order fully despatched for this tote  
+      
+      SELECT TOP 1 @cOrderkey   = RTRIM(ISNULL(Orderkey,''))
+      FROM rdt.rdtECOMMLog WITH (NOLOCK)  
+      GROUP BY ToteNo, SKU , Status , AddWho, OrderKey 
+                     HAVING ToteNo = @cDropID  
+                     --AND Orderkey = @cOrderkey  
+                     AND SKU = @cSKU  
+                     AND SUM(ExpectedQty) > SUM(ScannedQty) --+ 1 
+                     AND Status < '5'  
+                     AND AddWho = @cUserName
+      ORDER BY Status Desc   
+  
+      IF NOT EXISTS (SELECT 1 FROM dbo.PackHeader WITH (NOLOCK) WHERE Orderkey = @cOrderkey)  
+      BEGIN  
+  
+  
+         IF NOT EXISTS (SELECT 1 FROM dbo.PickHeader WITH (NOLOCK) WHERE Orderkey = @cOrderkey)  
+         BEGIN  
+            /****************************  
+             PICKHEADER  
+            ****************************/  
+  
+            IF ISNULL(@cPickSlipNo,'') = ''  
+            BEGIN  
+               EXECUTE dbo.nspg_GetKey  
+               'PICKSLIP',  
+               9,  
+               @cPickslipno OUTPUT,  
+               @bsuccess   OUTPUT,  
+               @nerrNo     OUTPUT,  
+               @cerrmsg    OUTPUT  
+  
+               SET @cPickslipno = 'P' + @cPickslipno  
+            END  
+  
+  
+  
+            INSERT INTO dbo.PICKHEADER (PickHeaderKey, Storerkey, Orderkey, PickType, Zone, TrafficCop, AddWho, AddDate, EditWho, EditDate)  
+            VALUES (@cPickSlipNo, @cStorerkey, @cOrderKey, '0', 'D', '', sUser_sName(), GETDATE(), sUser_sName(), GETDATE())  
+            
+            IF @@ERROR <> 0  
+            BEGIN  
+               SET @nErrNo = 101504  
+               SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'InsPickHdrFail'  
+               GOTO RollBackTran  
+            END  
+            ELSE  
+            BEGIN  
+               
+               UPDATE dbo.PICKDETAIL WITH (ROWLOCK)  
+               SET  PICKSLIPNO = @cPickslipno,  
+                    Trafficcop = NULL  
+               WHERE StorerKey = @cStorerKey  
+               AND   Orderkey = @cOrderKey  
+               AND   (Status = '5' OR ShipFlag = 'P')  
+               AND   ISNULL(RTrim(Pickslipno),'') = ''  
+  
+               IF @@ERROR <> 0  
+               BEGIN  
+                  SET @nErrNo = 101505  
+                  SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdPickDetFail'  
+                  GOTO RollBackTran  
+               END  
+            END  
+            
+            INSERT INTO dbo.PickingInfo (PickslipNo , ScanInDate ) 
+            VALUES ( @cPickSlipNo , GetDate() ) 
+            
+            IF @@ERROR <> 0 
+            BEGIN
+               SET @nErrNo = 101517  
+               SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'InsPickInfoFail'  
+               GOTO RollBackTran  
+            END
+         END -- pickheader does not exist  
+         ELSE
+         BEGIN
+            
+            SELECT @cPickSlipNo = PickHeaderKey 
+            FROM dbo.PickHeader WITH (NOLOCK)
+            WHERE OrderKey = @cOrderKey
+            
+            
+         END
+  
+         /****************************  
+          PACKHEADER  
+         ****************************/  
+  
+  
+         INSERT INTO dbo.PackHeader  
+         (Route, OrderKey, OrderRefNo, Loadkey, Consigneekey, StorerKey, PickSlipNo, AddWho, AddDate, EditWho, EditDate)  
+         SELECT O.Route, O.OrderKey, O.LoadKey, O.LoadKey, O.ConsigneeKey, O.Storerkey,  
+               PH.PickHeaderkey, sUser_sName(), GETDATE(), sUser_sName(), GETDATE()  
+         FROM  dbo.PickHeader PH WITH (NOLOCK)  
+         JOIN  dbo.Orders O WITH (NOLOCK) ON (PH.Orderkey = O.Orderkey)  
+         WHERE PH.Orderkey = @cOrderkey  
+  
+         IF @@ERROR <> 0  
+         BEGIN  
+            SET @nErrNo = 101506  
+            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'CreatePHdrFail'  
+            GOTO RollBackTran  
+         END  
+         
+         SELECT @cLoadKey = LoadKey
+         FROM dbo.PackHeader WITH (NOLOCK) 
+         WHERE PickSlipNo = @cPickSlipNo 
+  
+      END -- packheader does not exist  
+      ELSE  
+      BEGIN  
+  
+            SELECT @cPickSlipNo = RTRIM(ISNULL(PickSlipNo,''))
+                  ,@cLoadKey    = RTRIM(ISNULL(@cLoadKey,''))
+            FROM   dbo.PackHeader PH WITH (NOLOCK)  
+            WHERE  Orderkey = @cOrderkey  
+  
+      END  
+         
+      /****************************  
+       PACKDETAIL  
+      ****************************/  
+      SET @cLabelNo = 0  
+      SET @nCartonNo = 0  
+      
+  
+      IF NOT EXISTS ( SELECT 1 FROM dbo.PackDetail WITH (NOLOCK)  
+                      WHERE PickSlipNo = @cPickSlipNo )
+                      --AND DropID = @cDropID )  
+      BEGIN  
+  
+         SET @cExecStatements = N'EXEC dbo.' + RTRIM( @cGenLabelNoSP) +  
+                                 '   @cPickslipNo           ' +  
+                                 ' , @nCartonNo             ' +  
+                                 ' , @cLabelNo     OUTPUT   '  
+  
+  
+         SET @cExecArguments =  
+                   N'@cPickslipNo  nvarchar(10),       ' +  
+                    '@nCartonNo    int,                ' +  
+                    '@cLabelNo     nvarchar(20) OUTPUT '  
+  
+  
+  
+         EXEC sp_executesql @cExecStatements, @cExecArguments,  
+                              @cPickslipNo  
+                            , @nCartonNo  
+                            , @cLabelNo      OUTPUT  
+  
+  
+  
+         IF ISNULL(@cLabelNo,'')  = ''  
+         BEGIN  
+               SET @nErrNo = 101507  
+               SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- NoLabelNoGen  
+               GOTO RollBackTran  
+         END  
+         
+      END  
+      ELSE  
+      BEGIN  
+         
+         IF EXISTS ( SELECT 1 FROM dbo.PackDetail WITH (NOLOCK) 
+                     WHERE PickSlipNo = @cPickSlipNo
+                     AND RefNo2 = '' )
+         BEGIN
+            SELECT TOP 1 @cLabelNo = LabelNo  
+            FROM dbo.PackDetail WITH (NOLOCK)  
+            WHERE PickSlipNo = @cPickSlipNo  
+            AND RefNo2 = ''
+            ORDER BY CartonNo Desc
+            --AND DropID = @cDropID
+         END
+         ELSE 
+         BEGIN
+            SET @cExecStatements = N'EXEC dbo.' + RTRIM( @cGenLabelNoSP) +  
+                                    '   @cPickslipNo           ' +  
+                                    ' , @nCartonNo             ' +  
+                                    ' , @cLabelNo     OUTPUT   '  
+     
+     
+            SET @cExecArguments =  
+                      N'@cPickslipNo  nvarchar(10),       ' +  
+                       '@nCartonNo    int,                ' +  
+                       '@cLabelNo     nvarchar(20) OUTPUT '  
+     
+     
+     
+            EXEC sp_executesql @cExecStatements, @cExecArguments,  
+                                 @cPickslipNo  
+                               , @nCartonNo  
+                               , @cLabelNo      OUTPUT  
+     
+     
+            
+            IF ISNULL(@cLabelNo,'') = ''  
+            BEGIN  
+                  SET @nErrNo = 101523  
+                  SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- NoLabelNoGen  
+                  GOTO RollBackTran  
+            END     
+         END
+         
+         
+      END  
+  
+      -- need to generate UPI for 1st Tote, and regenerate for subsequent tote  
+      -- because the total PackQty would differ from original  
+--      SELECT @nPackQty = ISNULL(SUM(ECOMM.ScannedQTY), 0)  
+--      FROM   rdt.rdtECOMMLog ECOMM WITH (NOLOCK)  
+--      WHERE  ToTeNo = @cDropID  
+--      AND    Orderkey = @cOrderkey  
+--      AND    Status < '5'  
+--      AND    AddWho = @cUserName  
+  
+      /***************************        
+      UPDATE rdtECOMMLog        
+      ****************************/        
+      UPDATE RDT.rdtECOMMLog WITH (ROWLOCK)        
+      SET   ScannedQty  = ScannedQty + 1,        
+            Status      = '1'    -- in progress        
+      WHERE ToteNo      = @cDropID        
+      AND   Orderkey    = @cOrderkey        
+      AND   Sku         = @cSku        
+      AND   Status      < '5'        
+      AND   AddWho = @cUserName      
+         
+      IF @@ERROR <> 0        
+      BEGIN        
+         SET @nErrNo = 101511        
+         SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'        
+         GOTO RollBackTran           
+      END   
+      
+  
+      IF NOT EXISTS (SELECT 1 FROM rdt.rdtECOMMLog ECOMM WITH (NOLOCK)       
+                     WHERE ToteNo = @cDropID         
+                     AND Orderkey = @cOrderkey       
+                     AND ExpectedQty > ScannedQty       
+                     AND Status < '5'      
+                     AND AddWho = @cUserName)       
+      BEGIN               
+
+   
+
+         DECLARE C_TOTE_DETAIL CURSOR LOCAL FAST_FORWARD READ_ONLY FOR  
+         SELECT RowRef , ScannedQTY, SKU
+         FROM   rdt.rdtECOMMLog ECOMM WITH (NOLOCK)  
+         WHERE  ToTeNo = @cDropID  
+         AND    Orderkey = @cOrderkey  
+         --AND    SKU    = @cSKU 
+         AND    Status < '5'  
+         AND    AddWho = @cUserName  
+         ORDER BY SKU  
+     
+         OPEN C_TOTE_DETAIL  
+         FETCH NEXT FROM C_TOTE_DETAIL INTO  @nRowRef , @nPackQty, @cSKU 
+         WHILE (@@FETCH_STATUS <> -1)  
+         BEGIN  
+            SET @cLabelLine = '00000'  
+     
+            
+
+            IF NOT EXISTS (SELECT 1 FROM dbo.PackDetail WITH (NOLOCK)  
+                           WHERE PickSlipNo = @cPickSlipNo  
+                           AND SKU = @cSku  
+                           AND DropID = @cDropID)  
+            BEGIN  
+               
+     
+               -- Insert PackDetail  
+               INSERT INTO dbo.PackDetail  
+                  (PickSlipNo, CartonNo, LabelNo, LabelLine, StorerKey, SKU, QTY, Refno, DropID, UPC, AddWho, AddDate, EditWho, EditDate, RefNo2)  
+               VALUES  
+                  (@cPickSlipNo, @nCartonNo, @cLabelNo, @cLabelLine, @cStorerKey, @cSku, @nPackQty ,
+                  @cLabelNo, @cDropID, '', sUser_sName(), GETDATE(), sUser_sName(), GETDATE(), '')  
+             
+               IF @@ERROR <> 0  
+               BEGIN  
+                  SET @nErrNo = 101509  
+                  SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'InsPackDetFail'  
+                  GOTO RollBackTran  
+               END  
+               ELSE  
+               BEGIN  
+                  --SET @nPackQty = @nPackQty + 1
+
+                  EXEC RDT.rdt_STD_EventLog  
+                    @cActionType = '8', -- Packing  
+                    @cUserID     = @cUserName,  
+                    @nMobileNo   = @nMobile,  
+                    @nFunctionID = @nFunc,  
+                    @cFacility   = @cFacility,  
+                    @cStorerKey  = @cStorerkey,  
+                    @cSKU        = @cSku,  
+                    @nQty        = @nPackQty ,  
+                    @cRefNo1     = @cDropID,  
+                    @cRefNo2     = @cLabelNo,  
+                    @cRefNo3     = @cPickSlipNo  
+               END  
+     
+     
+            END --packdetail for sku/order does not exists  
+            ELSE  
+            BEGIN  
+               UPDATE dbo.Packdetail WITH (ROWLOCK)  
+               SET   QTY      = QTY + 1 --(@nPackQty + 1 ) 
+                     --LabelNo  = @cLabelNo,  
+                     --RefNo    = @cDropID
+                     --UPC      = @cTrackNo  
+               WHERE PickSlipNo = @cPickSlipNo AND SKU = @cSku --AND DropID = @cDropID  
+     
+               IF @@ERROR <> 0  
+               BEGIN  
+                  SET @nErrNo = 101510      
+                  SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdPackDetFail'  
+                  GOTO RollBackTran  
+               END  
+               
+               EXEC RDT.rdt_STD_EventLog  
+                 @cActionType = '8', -- Packing  
+                 @cUserID     = @cUserName,  
+                 @nMobileNo   = @nMobile,  
+                 @nFunctionID = @nFunc,  
+                 @cFacility   = @cFacility,  
+                 @cStorerKey  = @cStorerkey,  
+                 @cSKU        = @cPackSku,  
+                 @nQty        = @nPackQty,  
+                 @cRefNo1     = @cDropID,  
+                 @cRefNo2     = @cLabelNo,  
+                 @cRefNo3     = @cPickSlipNo  
+               
+     
+            END -- packdetail for sku/order exists  
+            
+            
+            /***************************  
+            UPDATE rdtECOMMLog  
+            ****************************/  
+--            UPDATE RDT.rdtECOMMLog WITH (ROWLOCK)  
+--            SET   ScannedQty  = ScannedQty + 1,  
+--                  Status      = '1'    -- in progress  
+--            WHERE RowRef = @nRowRef
+--            
+--            IF @@ERROR <> 0  
+--            BEGIN  
+--               SET @nErrNo = 101511  
+--               SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'  
+--               GOTO RollBackTran  
+--            END  
+     
+            
+            
+            FETCH NEXT FROM C_TOTE_DETAIL INTO   @nRowRef , @nPackQty, @cSKU
+         END --while  
+         CLOSE C_TOTE_DETAIL  
+         DEALLOCATE C_TOTE_DETAIL  
+         
+         IF EXISTS ( SELECT 1 FROM dbo.PickDetail WITH (NOLOCK)  
+                          WHERE StorerKey = @cStorerKey  
+                          AND DropID = @cDropID  
+                          AND OrderKey = @cOrderKey
+                          AND ISNULL(CaseID,'')  = ''  
+                          AND (Status = '5' OR Status = '3' OR ShipFlag = 'P'))
+                          --AND SKU = @cSKU )  
+         BEGIN  
+            
+            UPDATE dbo.PickDetail WITH (ROWLOCK)  
+            SET CASEID     = @cLabelNo  
+               --,DropID     = @cLabelNo
+               ,TrafficCop = NULL  
+            WHERE StorerKey = @cStorerKey  
+            AND DropID = @cDropID 
+            AND Status IN ( '3', '5' ) 
+            AND OrderKey = @cOrderKey  
+            --AND SKU = @cSKU
+         
+            IF @@ERROR <> 0  
+            BEGIN  
+                  SET @nErrNo = 101508  
+                  SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- UpdPickDetFull  
+                  GOTO RollBackTran  
+            END  
+         END  
+         
+      END
+      
+      -- check if total order fully despatched  
+      SELECT @nTotalPickQty = SUM(ISNULL(PK.Qty,0))  
+      FROM  dbo.PICKDETAIL PK WITH (nolock)  
+      WHERE PK.StorerKey = @cStorerKey
+      AND PK.Orderkey = @cOrderkey  
+  
+      
+      SELECT @nTotalPackQty = SUM(ISNULL(PD.Qty,0))  
+      FROM  dbo.PACKDETAIL PD WITH (NOLOCK)  
+      WHERE StorerKey = @cStorerKey
+      AND PickSlipNo = @cPickSlipNo 
+      
+  
+           
+      -- Prepare for TaskStatus 
+      IF @nTotalPickQty = @nTotalPackQty
+      BEGIN
+            SELECT @cLabelPrinter = Printer
+            , @cPaperPrinter = Printer_Paper
+            FROM rdt.rdtMobrec WITH (NOLOCK)
+            WHERE Mobile = @nMobile
+             
+            SELECT  
+                  @cDropIDType = DropIDType
+            FROM dbo.DropID WITH (NOLOCK)
+            WHERE DropID = @cDropID
+            AND Status = '5'
+            
+            IF EXISTS ( SELECT 1 FROM dbo.Orders WITH (NOLOCK)         
+                              WHERE StorerKey = @cStorerKey      
+                              AND OrderKey = @cOrderKey       
+                              --AND ISNULL(UserDefine04,'')  = '' )       
+                              AND ISNULL(TrackingNo,'')  = '' )   -- (james01)
+            BEGIN      
+                 UPDATE dbo.Orders WITH (ROWLOCK)       
+                 --SET UserDefine04 = @cTrackNo 
+                 SET TrackingNo = @cTrackNo -- (james01)
+                    --,SOStatus= '0'     
+                    ,Trafficcop   = NULL   
+                 WHERE Orderkey = @cOrderKey      
+                 AND Storerkey = @cStorerKey      
+                       
+                 IF @@ERROR <> 0       
+                 BEGIN      
+                       SET @nErrNo = 94675                 
+                       SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- UpdOrderFail                  
+                       GOTO RollBackTran        
+                 END      
+            END   
+            
+            -- Print Label  
+            UPDATE dbo.PackHeader WITH (ROWLOCK)  
+            SET Status = '9'  
+            WHERE PickSlipNo = @cPickSlipNo  
+            AND StorerKey = @cStorerKey  
+
+            SELECT @cShipperKey = ShipperKey      
+                  ,@cOrderType  = Type      
+                  ,@cSectionKey = RTRIM(SectionKey)    
+                  ,@cLoadKey    = LoadKey
+                  ,@cExternOrderKey = ExternOrderKey
+            FROM dbo.Orders WITH (NOLOCK)      
+            WHERE OrderKey = @cOrderKey      
+            AND StorerKey = @cStorerKey  
+            
+            -- Trigger WebService --       
+            --IF @cOrderType = 'TMALL'
+            IF EXISTS ( SELECT 1 FROM dbo.CodeLKUP CL WITH (NOLOCK) 
+                        WHERE CL.ListName = 'ECOMTYPE'
+                        --AND CL.StorerKey = @cStorerKey
+                        AND CL.Code = @cOrderType ) 
+            BEGIN
+              EXEC  [isp_WS_UpdPackOrdSts]        
+                       @cOrderKey         
+                     , @cStorerKey         
+                     , @bSuccess OUTPUT        
+                     , @nErrNo    OUTPUT        
+                     , @cErrMsg   OUTPUT           
+            END    
+            ELSE
+            BEGIN
+                UPDATE dbo.Orders WITH (ROWLOCK)       
+                 SET SOStatus= '0'     
+                    ,Trafficcop   = NULL 
+                WHERE Orderkey = @cOrderKey      
+                AND Storerkey = @cStorerKey      
+                       
+                IF @@ERROR <> 0       
+                BEGIN      
+                       SET @nErrNo = 94675                 
+                       SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- UpdOrderFail                  
+                       GOTO RollBackTran        
+                END      
+            END  
+         
+         
+            SELECT @cDataWindow = DataWindow,         
+                  @cTargetDB = TargetDB         
+            FROM rdt.rdtReport WITH (NOLOCK)         
+            WHERE StorerKey = @cStorerKey        
+            AND   ReportType = 'BAGMANFEST'        
+            
+            SET @cShipperKey = ''      
+            SET @cOrderType = ''      
+               
+           
+            
+            EXEC RDT.rdt_BuiltPrintJob          
+                 @nMobile,          
+                 @cStorerKey,          
+                 'BAGMANFEST',              -- ReportType          
+                 'BAGMANFEST',              -- PrintJobName          
+                 @cDataWindow,          
+                 @cPaperPrinter,          
+                 @cTargetDB,          
+                 @cLangCode,          
+                 @nErrNo  OUTPUT,          
+                 @cErrMsg OUTPUT,           
+                 @cOrderkey,         
+                 @cLabelNo      
+          
+--           IF @cShipperKey IN ( 'LFL', 'DHL' )   
+--           BEGIN
+--                EXEC RDT.rdt_BuiltPrintJob      
+--                @nMobile,      
+--                @cStorerKey,      
+--                'SHIPLBLDTC',    -- ReportType      
+--                'SHIPLBLDTC',    -- PrintJobName      
+--                @cDataWindow,      
+--                @cLabelPrinter,      
+--                @cTargetDB,      
+--                @cLangCode,      
+--                @nErrNo  OUTPUT,      
+--                @cErrMsg OUTPUT,    
+--                @cLoadKey,                               
+--                @cOrderKey,
+--                @cExternOrderKey,                         
+--                @cLabelNo,                      
+--                @cShipperKey
+--                
+--           END
+--           ELSE
+--           BEGIN
+--               EXEC RDT.rdt_BuiltPrintJob      
+--                @nMobile,      
+--                @cStorerKey,      
+--                'SHIPPLABEL',    -- ReportType      
+--                'SHIPPLABEL',    -- PrintJobName      
+--                @cDataWindow,      
+--                @cLabelPrinter,      
+--                @cTargetDB,      
+--                @cLangCode,      
+--                @nErrNo  OUTPUT,      
+--                @cErrMsg OUTPUT,    
+--                @cLoadKey,                               
+--                @cOrderKey, -- OrderKey       
+--                @cShipperKey            
+--                
+--           END
+         
+     
+           IF EXISTS ( SELECT 1 FROM dbo.Orders WITH (NOLOCK)  
+                       WHERE OrderKey = @cOrderKey  
+                       AND PrintFlag = '1' )   
+           BEGIN        
+              -- Check if it is Metapack printing    
+              SELECT @cFilePath = Long, @cPrintFilePath = Notes     
+              FROM dbo.CODELKUP WITH (NOLOCK)      
+              WHERE LISTNAME = 'CaiNiao'      
+              AND   Code = 'WayBill'    
+             
+              
+
+              SELECT @cWinPrinter = WinPrinter  
+              FROM rdt.rdtPrinter WITH (NOLOCK)  
+              WHERE PrinterID = @cLabelPrinter  
+              
+              
+              
+              IF CHARINDEX(',' , @cWinPrinter) > 0 
+              BEGIN
+                  SET @cPrinterName = LEFT( @cWinPrinter , (CHARINDEX(',' , @cWinPrinter) - 1) )    
+              END
+              ELSE
+              BEGIN
+                  SET @cPrinterName =  @cWinPrinter 
+              END
+               
+              IF ISNULL( @cFilePath, '') <> ''    
+              BEGIN    
+                 SET @cFileName = 'WB_' + RTRIM( @cOrderKey) + '.pdf'     
+                 SET @cPrintCommand = '"' + @cPrintFilePath + '" /t "' + @cFilePath + '\' + @cFileName + '" "' + @cPrinterName + '"'                              
+                     
+                   
+                 EXEC RDT.rdt_BuiltPrintJob          
+                  @nMobile,          
+                  @cStorerKey,          
+                  'WAYBILL',    -- ReportType          
+                  'WAYBILL',    -- PrintJobName          
+                  @cFileName,          
+                  @cLabelPrinter,          
+                  @cTargetDB,          
+                  @cLangCode,          
+                  @nErrNo  OUTPUT,          
+                  @cErrMsg OUTPUT,           
+                  '',         
+                  '',      
+                  '',    
+                  '',    
+                  '',    
+                  '',    
+                  '',    
+                  '',    
+                  '',    
+                  '',    
+                  '1',    
+                  @cPrintCommand    
+            
+                  UPDATE dbo.Orders WITH (ROWLOCK)   
+                  SET PrintFlag = '2'  
+                     ,TrafficCop = NULL   
+                  WHERE OrderKey = @cOrderKey   
+                    
+                  IF @@ERROR <> 0   
+                  BEGIN  
+                     SET @nErrNo = 94680          
+                     SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdOrdFail'        
+                     GOTO RollBackTran         
+                  END  
+                    
+              END   -- @cFilePath    
+           END   
+           ELSE   
+           BEGIN  
+               SET @nErrNo = 0       
+               SET @cErrMsg = 'WB' + @cOrderKey --rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'WayBillNotFound'        
+           END  
+           
+           -- UPDATE PACKDETAIL WITH * Indicate Carton Change
+           UPDATE dbo.PackDetail WITH (ROWLOCK) 
+           SET RefNo2 = RefNo2 + '*'
+              ,UPC = @cTrackNo 
+           WHERE PickSlipNo = @cPickSlipNo
+           AND CartonNo = @nCartonNo
+           AND ISNULL(RefNo2,'') = ''
+            
+           IF @@ERROR <> 0 
+           BEGIN
+              SET @nErrNo = 101522  
+              SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdPackDetFail'  
+              GOTO RollBackTran  
+           END
+           
+           /****************************  
+           rdtECOMMLog  
+           ****************************/  
+           --update rdtECOMMLog  
+                 
+           UPDATE RDT.rdtECOMMLog WITH (ROWLOCK)  
+           SET   Status      = '9'    -- completed  
+           WHERE ToteNo      = @cDropID  
+           AND   Orderkey    = @cOrderkey  
+           AND   AddWho      = @cUserName  
+           AND   Status      = '1'  
+        
+           IF @@ERROR <> 0  
+           BEGIN  
+              SET @nErrNo = 101513  
+              SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'  
+              GOTO RollBackTran  
+           END  
+           
+           
+           
+           IF NOT EXISTS ( SELECT 1 FROM rdt.rdtECOMMLOG WITH (NOLOCK) 
+                         WHERE ToteNo = @cDropID
+                         AND Status IN (  '0' ,'1' ) 
+                         AND ExpectedQty <>  ScannedQty
+                         AND AddWho = @cUserName ) 
+           BEGIN               
+              UPDATE dbo.DROPID WITH (Rowlock)
+               SET   Status = '9'
+                    ,Editdate = GetDate()
+              WHERE DropID = @cDropID
+              AND   Status < '9'
+      
+              IF @@ERROR <> 0
+              BEGIN
+                     SET @nErrNo = 101515
+                     SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'
+                     GOTO ROLLBACKTRAN
+              END
+
+              SET @cPostDataCapture = rdt.RDTGetConfig( @nFunc, 'PostDataCapture', @cStorerKey)  
+              IF @cPostDataCapture = '0'  
+                 SET @cPostDataCapture = '' 
+                  
+              
+              IF @cPostDataCapture = ''
+              BEGIN
+                  SET @cTaskStatus = '9' 
+                  
+                  SELECT @cTrackNo = ISNULL(TrackingNo ,'') 
+                  FROM dbo.Orders WITH (NOLOCK) 
+                  WHERE StorerKey = @cStorerKey
+                  AND OrderKey = @cOrderKey 
+                  
+                  
+              END    
+              --ELSE
+              --BEGIN
+              --   SET @cTaskStatus = '9'     
+              --END
+           END
+           ELSE
+           BEGIN
+               SELECT TOP 1 @cBatchKey = BatchKey
+               FROM rdt.rdtECOMMLog WITH (NOLOCK)
+               WHERE ToteNo = @cDropID
+               AND Status IN ( '0', '1' ) 
+               --AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+               AND AddWho = @cUserName
+               AND Mobile = @nMobile
+               
+               SELECT @nTotalPickedQty  = SUM(ExpectedQty)
+               FROM rdt.rdtECOMMLog WITH (NOLOCK)
+               WHERE ToteNo = @cDropID
+               AND Status IN ('0' , '1', '9' )
+               AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+               AND AddWho = @cUserName
+               AND Mobile = @nMobile
+               AND BatchKey = @cBatchKey
+               AND ISNULL(ErrMSG,'')  = ''
+               
+               SELECT @nTotalScannedQty = SUM(ScannedQty) 
+               FROM rdt.rdtECOMMLog WITH (NOLOCK)
+               WHERE ToteNo = @cDropID
+               AND Status IN ( '1', '9' ) 
+               AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+               AND AddWho = @cUserName
+               AND ISNULL(ErrMSG,'')  = ''
+               AND Mobile = @nMobile
+               AND BatchKey = @cBatchKey
+   
+             
+   
+               SET @cOrderKey      = CASE WHEN @cDropIDType = 'SINGLES' THEN '' ELSE @cOrderKey END
+               SET @cTrackNo       = ''    
+               SET @cCartonType    = ''    
+               SET @cWeight        = ''    
+               SET @cTaskStatus    = '1'
+               SET @cTTLPickedQty  = @nTotalPickedQty
+               SET @cTTLScannedQty = @nTotalScannedQty
+           END
+            
+         
+      END
+      ELSE
+      BEGIN
+         
+         IF EXISTS ( SELECT 1 FROM rdt.rdtECOMMLOG WITH (NOLOCK) 
+                         WHERE ToteNo = @cDropID
+                         AND Status IN (  '0' ,'1' ) 
+                         AND ExpectedQty <>  ScannedQty
+                         AND AddWho = @cUserName ) 
+         BEGIN 
+            SELECT TOP 1 @cBatchKey = BatchKey
+            FROM rdt.rdtECOMMLog WITH (NOLOCK)
+            WHERE ToteNo = @cDropID
+            AND Status IN ( '0', '1' ) 
+            --AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+            AND AddWho = @cUserName
+            AND Mobile = @nMobile
+            
+            SELECT @nTotalPickedQty  = SUM(ExpectedQty)
+            FROM rdt.rdtECOMMLog WITH (NOLOCK)
+            WHERE ToteNo = @cDropID
+            AND Status IN ('0' , '1', '9' )
+            AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+            AND AddWho = @cUserName
+            AND Mobile = @nMobile
+            AND BatchKey = @cBatchKey
+            AND ISNULL(ErrMSG,'')  = ''
+            
+            SELECT @nTotalScannedQty = SUM(ScannedQty) 
+            FROM rdt.rdtECOMMLog WITH (NOLOCK)
+            WHERE ToteNo = @cDropID
+            AND Status IN ( '1', '9' ) 
+            AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+            AND AddWho = @cUserName
+            AND ISNULL(ErrMSG,'')  = ''
+            AND Mobile = @nMobile
+            AND BatchKey = @cBatchKey
+   
+             
+   
+            SET @cOrderKey      = CASE WHEN @cDropIDType = 'SINGLES' THEN '' ELSE @cOrderKey END
+            SET @cTrackNo       = ''    
+            SET @cCartonType    = ''    
+            SET @cWeight        = ''    
+            SET @cTaskStatus    = '1'
+            SET @cTTLPickedQty  = @nTotalPickedQty
+            SET @cTTLScannedQty = @nTotalScannedQty
+         END
+         ELSE
+         BEGIN
+            UPDATE RDT.rdtECOMMLog WITH (ROWLOCK)  
+            SET   Status      = '9'    -- completed  
+            WHERE ToteNo      = @cDropID  
+            AND   Orderkey    = @cOrderkey  
+            AND   AddWho      = @cUserName  
+            AND   Status      = '1'  
+        
+            IF @@ERROR <> 0  
+            BEGIN  
+               SET @nErrNo = 101519  
+               SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'  
+               GOTO RollBackTran  
+            END  
+      
+            
+            
+            SET @cOrderKey      = CASE WHEN @cDropIDType = 'SINGLES' THEN '' ELSE @cOrderKey END
+            SET @cTrackNo       = ''    
+            SET @cCartonType    = ''    
+            SET @cWeight        = ''    
+            SET @cTaskStatus    = '5'
+            SET @cTTLPickedQty  = 0
+            SET @cTTLScannedQty = 0
+         END
+         
+      END
+      
+
+   END  
+   
+--   IF @nStep = 3
+--   BEGIN
+--       
+--       SELECT @cLabelPrinter = Printer
+--            , @cPaperPrinter = Printer_Paper
+--       FROM rdt.rdtMobrec WITH (NOLOCK)
+--       WHERE Mobile = @nMobile
+--       
+--       SELECT  
+--             @cDropIDType = DropIDType
+--       FROM dbo.DropID WITH (NOLOCK)
+--       WHERE DropID = @cDropID
+--       AND Status = '5'
+--
+--      /****************************  
+--       PACKINFO  
+--      ****************************/  
+--      SELECT @fCartonWeight = CartonWeight
+--            ,@fCartonLength = CartonLength
+--            ,@fCartonHeight = CartonHeight
+--            ,@fCartonWidth  = CartonWidth 
+--      FROM dbo.Cartonization WITH (NOLOCK)
+--      WHERE CartonType = @cCartonType
+--      
+--      
+--
+--
+--      --SELECT TOP 1 @cOrderkey   = RTRIM(ISNULL(Orderkey,''))
+--      --FROM rdt.rdtECOMMLog WITH (NOLOCK)  
+--      --GROUP BY ToteNo, SKU , Status , AddWho, OrderKey 
+--      --               HAVING ToteNo = @cDropID  
+--      --               --AND Orderkey = @cOrderkey  
+--      --               AND SKU = @cSKU  
+--      --               AND Status < '5'  
+--      --               AND AddWho = @cUserName
+--      --ORDER BY Status Desc   
+--      
+--      SELECT @cPickSlipNo = PickSlipNo 
+--      FROM dbo.PackHeader WITH (NOLOCK) 
+--      WHERE OrderKey = @cOrderKey 
+--      
+--      SELECT TOP 1 @nCartonNo  = CartonNo 
+--      FROM dbo.PackDetail WITH (NOLOCK)
+--      WHERE StorerKey = @cStorerKey
+--      AND PickSlipNo = @cPickSlipNo
+--      AND RefNo2 = ''
+--      ORDER BY CartonNo Desc
+--
+--      --INSERT INTO TRACEINFO ( TraceName , TimeIN , col1, Col2, col3, col4 ) 
+--      --VALUES ( 'rdt_842ExtUpdSP02' , Getdate() , @cOrderKey , @cPickSlipNo , @nCartonNo , '' ) 
+--
+--
+--      SELECT @nTotalPackedQty = SUM(Qty)
+--      FROM dbo.PackDetail WITH (NOLOCK)
+--      WHERE StorerKey = @cStorerKey
+--      AND PickSlipNo = @cPickSlipNo
+--      AND CartonNo = @nCartonNo
+--      GROUP BY CartonNo
+--      
+--      SELECT TOP 1 @cLabelNo = LabelNo 
+--      FROM dbo.PackDetail WITH (NOLOCK) 
+--      WHERE StorerKey = @cStorerKey
+--      AND PickSlipNo = @cPickSlipNo
+--      AND CartonNo = @nCartonNo 
+--      
+--
+--      
+--      SET @fCartonCube = (@fCartonLength * @fCartonHeight * @fCartonWidth)/(100*100*100) 
+--      
+-- 
+--      SET @fCartonTotalWeight = @cWeight
+--
+--      IF NOT EXISTS ( SELECT 1 FROM dbo.PackInfo WITH (NOLOCK)
+--                      WHERE PickSlipNo = @cPickSlipNo
+--                      AND CartonNo = @nCartonNo ) 
+--      BEGIN
+--         
+--
+--         INSERT INTO dbo.PackInfo(PickslipNo, CartonNo, CartonType, Refno, Weight, Cube, Qty, AddWho, AddDate, EditWho, EditDate)    
+--         VALUES ( @cPickSlipNo , @nCartonNo, @cCartonType, '', @fCartonTotalWeight, @fCartonCube, @nTotalPackedQty, sUser_sName(), GetDate(), sUser_sName(), GetDate()) 
+--         
+--         IF @@ERROR <> 0        
+--         BEGIN        
+--            SET @nErrNo = 101512               
+--            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'InsPackInfoFail'       
+--            GOTO RollBackTran        
+--         END  
+--         
+--      END
+--      
+--      --ELSE
+--      --BEGIN
+--      
+--      --   UPDATE dbo.PackInfo WITH (ROWLOCK)
+--      --   SET Qty = @nTotalPackedQty
+--      --      ,Weight = @fCartonTotalWeight
+--      --   WHERE PickSlipNo = @cPickSlipNo
+--      --   AND CartonNo = @nCartonNo
+--         
+--      --   IF @@ERROR <> 0        
+--      --   BEGIN        
+--      --      SET @nErrNo = 95662              
+--      --      SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdPackInfoFail'       
+--      --      GOTO RollBackTran        
+--      --   END  
+--         
+--      --END 
+--      
+--     
+--      
+--      IF EXISTS ( SELECT 1 FROM dbo.Orders WITH (NOLOCK)         
+--                              WHERE StorerKey = @cStorerKey      
+--                              AND OrderKey = @cOrderKey       
+--                              AND ISNULL(UserDefine04,'')  = '' )       
+--      BEGIN      
+--           UPDATE dbo.Orders WITH (ROWLOCK)       
+--           SET UserDefine04 = @cTrackNo 
+--              --,SOStatus= '0'     
+--              ,Trafficcop   = NULL   
+--           WHERE Orderkey = @cOrderKey      
+--           AND Storerkey = @cStorerKey      
+--                 
+--           IF @@ERROR <> 0       
+--           BEGIN      
+--                 SET @nErrNo = 94675                 
+--                 SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- UpdOrderFail                  
+--                 GOTO RollBackTran        
+--           END      
+--      END   
+--  
+--            
+--      SET @nPackQTY = 0
+--      SET @nPickQTY = 0
+--      SELECT @nPackQTY = SUM( QTY) FROM PackDetail WITH (NOLOCK) WHERE PickSlipNo = @cPickSlipNo
+--      SELECT @nPickQTY = SUM( QTY) FROM PickDetail WITH (NOLOCK) WHERE OrderKey = @cOrderKey
+--      
+--      
+--      IF ( @nPackQty > 0 AND @nPickQty > 0 ) AND  (@nPackQty = @nPickQty )
+--      BEGIN
+--         -- Print Label  
+--         UPDATE dbo.PackHeader WITH (ROWLOCK)  
+--         SET Status = '9'  
+--         WHERE PickSlipNo = @cPickSlipNo  
+--         AND StorerKey = @cStorerKey  
+--         
+--         
+--         -- Trigger WebService --       
+--         IF @cOrderType = 'TMALL'
+--         BEGIN
+--           EXEC  [isp_WS_UpdPackOrdSts]        
+--                    @cOrderKey         
+--                  , @cStorerKey         
+--                  , @bSuccess OUTPUT        
+--                  , @nErrNo    OUTPUT        
+--                  , @cErrMsg   OUTPUT           
+--         END    
+--         ELSE
+--         BEGIN
+--             UPDATE dbo.Orders WITH (ROWLOCK)       
+--              SET SOStatus= '0'     
+--                 ,Trafficcop   = NULL 
+--             WHERE Orderkey = @cOrderKey      
+--             AND Storerkey = @cStorerKey      
+--                    
+--             IF @@ERROR <> 0       
+--             BEGIN      
+--                    SET @nErrNo = 94675                 
+--                    SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- UpdOrderFail                  
+--                    GOTO RollBackTran        
+--             END      
+--         END  
+--         
+--         
+--         SELECT @cDataWindow = DataWindow,         
+--               @cTargetDB = TargetDB         
+--         FROM rdt.rdtReport WITH (NOLOCK)         
+--         WHERE StorerKey = @cStorerKey        
+--         AND   ReportType = 'BAGMANFEST'        
+--         
+--         SET @cShipperKey = ''      
+--         SET @cOrderType = ''      
+--               
+--         SELECT @cShipperKey = ShipperKey      
+--               ,@cOrderType  = Type      
+--               ,@cSectionKey = RTRIM(SectionKey)    
+--               ,@cLoadKey    = LoadKey
+--               ,@cExternOrderKey = ExternOrderKey
+--         FROM dbo.Orders WITH (NOLOCK)      
+--         WHERE OrderKey = @cOrderKey      
+--         AND StorerKey = @cStorerKey  
+--         
+--         EXEC RDT.rdt_BuiltPrintJob          
+--              @nMobile,          
+--              @cStorerKey,          
+--              'BAGMANFEST',              -- ReportType          
+--              'BAGMANFEST',              -- PrintJobName          
+--              @cDataWindow,          
+--              @cPaperPrinter,          
+--              @cTargetDB,          
+--              @cLangCode,          
+--              @nErrNo  OUTPUT,          
+--              @cErrMsg OUTPUT,           
+--              @cOrderkey,         
+--              @cLabelNo      
+--          
+--         IF @cShipperKey IN ( 'LFL', 'DHL' )   
+--         BEGIN
+--             EXEC RDT.rdt_BuiltPrintJob      
+--             @nMobile,      
+--             @cStorerKey,      
+--             'SHIPLBLDTC',    -- ReportType      
+--             'SHIPLBLDTC',    -- PrintJobName      
+--             @cDataWindow,      
+--             @cLabelPrinter,      
+--             @cTargetDB,      
+--             @cLangCode,      
+--             @nErrNo  OUTPUT,      
+--             @cErrMsg OUTPUT,    
+--             @cLoadKey,                               
+--             @cOrderKey,
+--             @cExternOrderKey,                         
+--             @cLabelNo,                      
+--             @cShipperKey
+--             
+--         END
+--         ELSE
+--         BEGIN
+--            EXEC RDT.rdt_BuiltPrintJob      
+--             @nMobile,      
+--             @cStorerKey,      
+--             'SHIPPLABEL',    -- ReportType      
+--             'SHIPPLABEL',    -- PrintJobName      
+--             @cDataWindow,      
+--             @cLabelPrinter,      
+--             @cTargetDB,      
+--             @cLangCode,      
+--             @nErrNo  OUTPUT,      
+--             @cErrMsg OUTPUT,    
+--             @cLoadKey,                               
+--             @cOrderKey, -- OrderKey       
+--             @cShipperKey            
+--             
+--         END
+--         
+--     
+--         IF EXISTS ( SELECT 1 FROM dbo.Orders WITH (NOLOCK)  
+--                     WHERE OrderKey = @cOrderKey  
+--                     AND PrintFlag = '1' )   
+--         BEGIN        
+--            -- Check if it is Metapack printing    
+--            SELECT @cFilePath = Long, @cPrintFilePath = Notes     
+--            FROM dbo.CODELKUP WITH (NOLOCK)      
+--            WHERE LISTNAME = 'CaiNiao'      
+--            AND   Code = 'WayBill'    
+--          
+--              
+--            SELECT @cWinPrinter = WinPrinter  
+--            FROM rdt.rdtPrinter WITH (NOLOCK)  
+--            WHERE PrinterID = @cLabelPrinter  
+--              
+--            SET @cPrinterName = LEFT( @cWinPrinter , (CHARINDEX(',' , @cWinPrinter) - 1) )  
+--                
+--            IF ISNULL( @cFilePath, '') <> ''    
+--            BEGIN    
+--               SET @cFileName = 'WB_' + RTRIM( @cOrderKey) + '.pdf'     
+--               SET @cPrintCommand = '"' + @cPrintFilePath + '" /t "' + @cFilePath + '\' + @cFileName + '" "' + @cPrinterName + '"'                              
+--                   
+--                 
+--               EXEC RDT.rdt_BuiltPrintJob          
+--                @nMobile,          
+--                @cStorerKey,          
+--                'WAYBILL',    -- ReportType          
+--                'WAYBILL',    -- PrintJobName          
+--                @cFileName,          
+--                @cLabelPrinter,          
+--                @cTargetDB,          
+--                @cLangCode,          
+--                @nErrNo  OUTPUT,          
+--                @cErrMsg OUTPUT,           
+--                '',         
+--                '',      
+--                '',    
+--                '',    
+--                '',    
+--                '',    
+--                '',    
+--                '',    
+--                '',    
+--                '',    
+--                '1',    
+--                @cPrintCommand    
+--         
+--                UPDATE dbo.Orders WITH (ROWLOCK)   
+--                SET PrintFlag = '2'  
+--                   ,TrafficCop = NULL   
+--                WHERE OrderKey = @cOrderKey   
+--                  
+--                IF @@ERROR <> 0   
+--                BEGIN  
+--                   SET @nErrNo = 94680          
+--                   SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdOrdFail'        
+--                   GOTO RollBackTran         
+--                END  
+--                  
+--            END   -- @cFilePath    
+--         END   
+--         ELSE   
+--         BEGIN  
+--             SET @nErrNo = 0       
+--             SET @cErrMsg = 'WB' + @cOrderKey --rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'WayBillNotFound'        
+--         END  
+--      END
+--
+--      -- UPDATE PACKDETAIL WITH * Indicate Carton Change
+--      UPDATE dbo.PackDetail WITH (ROWLOCK) 
+--      SET RefNo2 = RefNo2 + '*'
+--         ,UPC = @cTrackNo 
+--      WHERE PickSlipNo = @cPickSlipNo
+--      AND CartonNo = @nCartonNo
+--      AND ISNULL(RefNo2,'') = ''
+--      
+--      IF @@ERROR <> 0 
+--      BEGIN
+--         SET @nErrNo = 101522  
+--         SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdPackDetFail'  
+--         GOTO RollBackTran  
+--      END
+--
+--       /****************************  
+--      rdtECOMMLog  
+--      ****************************/  
+--      --update rdtECOMMLog  
+--            
+--      UPDATE RDT.rdtECOMMLog WITH (ROWLOCK)  
+--      SET   Status      = '9'    -- completed  
+--      WHERE ToteNo      = @cDropID  
+--      AND   Orderkey    = @cOrderkey  
+--      AND   AddWho      = @cUserName  
+--      AND   Status      = '1'  
+--  
+--      IF @@ERROR <> 0  
+--      BEGIN  
+--         SET @nErrNo = 101513  
+--         SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'  
+--         GOTO RollBackTran  
+--      END  
+--         
+--      IF EXISTS ( SELECT 1 FROM rdt.rdtECOMMLog ECOMM WITH (NOLOCK) WHERE ToteNo = @cDropID
+--                  AND Mobile = @nMobile AND Status < '5' )
+--      BEGIN
+--         
+--         SELECT TOP 1 @cBatchKey = BatchKey
+--         FROM rdt.rdtECOMMLog WITH (NOLOCK)
+--         WHERE ToteNo = @cDropID
+--         AND Status = '0'
+--         AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+--         AND AddWho = @cUserName
+--         AND Mobile = @nMobile
+--         
+--         SELECT @nTotalPickedQty  = SUM(ExpectedQty)
+--         FROM rdt.rdtECOMMLog WITH (NOLOCK)
+--         WHERE ToteNo = @cDropID
+--         AND Status IN ('0' , '9' )
+--         AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+--         AND AddWho = @cUserName
+--         AND Mobile = @nMobile
+--         AND BatchKey = @cBatchKey
+--         AND ISNULL(ErrMSG,'')  = ''
+--         
+--         SELECT @nTotalScannedQty = SUM(ScannedQty) 
+--         FROM rdt.rdtECOMMLog WITH (NOLOCK)
+--         WHERE ToteNo = @cDropID
+--         AND Status = '9'
+--         AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+--         AND AddWho = @cUserName
+--         AND ISNULL(ErrMSG,'')  = ''
+--         AND Mobile = @nMobile
+--         AND BatchKey = @cBatchKey
+--   
+--         --INSERT INTO TRACEINFO (TraceName , TimeIN , Col1, Col2, Col3, Col4, Col5  ) 
+--         --VALUES ( 'rdt_842ExtUpdSP02' , Getdate() , @cDropID , @nTotalPickedQty , @nTotalScannedQty , @cUserName ,@cDropIDType ) 
+--      
+--   
+--         SET @cOrderKey      = ''
+--         SET @cTrackNo       = ''    
+--         SET @cCartonType    = ''    
+--         SET @cWeight        = ''    
+--         SET @cTaskStatus    = '1'
+--         SET @cTTLPickedQty  = @nTotalPickedQty
+--         SET @cTTLScannedQty = @nTotalScannedQty
+--         
+--      END
+--      ELSE
+--      BEGIN
+--         
+--         UPDATE dbo.DROPID WITH (Rowlock)
+--         SET   Status = '9'
+--              ,Editdate = GetDate()
+--         WHERE DropID = @cDropID
+--         AND   Status < '9'
+--   
+--         IF @@ERROR <> 0
+--         BEGIN
+--               SET @nErrNo = 101515
+--               SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'
+--               GOTO ROLLBACKTRAN
+--         END
+--            
+--         SET @cOrderKey      = ''
+--         SET @cTrackNo       = ''    
+--         SET @cCartonType    = ''    
+--         SET @cWeight        = ''    
+--         SET @cTaskStatus    = '9'
+--         SET @cTTLPickedQty  = ''
+--         SET @cTTLScannedQty = ''
+--      END 
+--
+--
+--
+--
+--      
+--      
+--   END
+  
+ 
+   IF @nStep = 4 
+   BEGIN
+      
+      IF @cOption IN ('1', '5') 
+      BEGIN
+          SET @nErrNo = 101520  
+          SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'InvalidOption'  
+          GOTO RollBackTran  
+      END
+      
+--      IF @cOption = '5'
+--      BEGIN
+--         SET @cOrderKey      = @cOrderKey
+--         SET @cTrackNo       = ''    
+--         SET @cCartonType    = ''    
+--         SET @cWeight        = ''    
+--         SET @cTaskStatus    = '5'
+--         SET @cTTLPickedQty  = ''
+--         SET @cTTLScannedQty = ''
+--      END   
+      
+      IF @cOption = '9' 
+      BEGIN
+      
+         SET @cOrderKey = '' 
+         
+         DECLARE C_Tote_Short CURSOR LOCAL FAST_FORWARD READ_ONLY FOR  
+         
+         SELECT RowRef, OrderKey
+         FROM rdt.rdtECOMMLog WITH (NOLOCK)  
+         WHERE ToteNo = @cDropID  
+         --AND SKU = CASE WHEN @cOption ='1' THEN @cSKU  ELSE SKU END
+         --AND SUM(ExpectedQty) > SUM(ScannedQty) --+ 1 
+         AND Status < '5'  
+         --AND AddWho = @cUserName
+         ORDER BY RowRef   
+         
+         OPEN C_Tote_Short  
+         FETCH NEXT FROM C_Tote_Short INTO  @nRowRef, @cOrderKey 
+         WHILE (@@FETCH_STATUS <> -1)  
+         BEGIN           
+            
+            UPDATE rdt.rdtEcommLog WITH (ROWLOCK) 
+            SET Status = CASE WHEN @cOption = '1' THEN '5' ELSE '9' END
+              , ErrMsg = CASE WHEN @cOption = '1' THEN 'Short Pack' ELSE 'Exit Pack' END
+            WHERE RowRef = @nRowRef
+            
+            IF @@ERROR <> 0  
+            BEGIN
+               SET @nErrNo = 101514  
+               SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') --'UpdEcommFail'  
+               GOTO RollBackTran  
+            END
+            
+   
+            EXEC RDT.rdt_STD_EventLog  
+                 @cActionType = '8', -- Packing  
+                 @cUserID     = @cUserName,  
+                 @nMobileNo   = @nMobile,  
+                 @nFunctionID = @nFunc,  
+                 @cFacility   = @cFacility,  
+                 @cStorerKey  = @cStorerkey,  
+                 @cSKU        = @cSku,  
+                 @cRefNo1     = 'SHORT PACK',  
+                 @cOrderKey   = @cOrderKey  
+            
+            FETCH NEXT FROM C_Tote_Short INTO  @nRowRef, @cOrderKey      
+            
+         END
+         CLOSE C_Tote_Short  
+         DEALLOCATE C_Tote_Short  
+         
+         
+         SET @cOrderKey      = ''
+         SET @cTrackNo       = ''    
+         SET @cCartonType    = ''    
+         SET @cWeight        = ''    
+         SET @cTaskStatus    = '9'
+         SET @cTTLPickedQty  = ''
+         SET @cTTLScannedQty = ''
+      END      
+      
+      
+      --END
+      
+      --IF @cOption = '9'
+      --BEGIN
+      --   SET @cOrderKey      = ''
+      --   SET @cTrackNo       = ''    
+      --   SET @cCartonType    = ''    
+      --   SET @cWeight        = ''    
+      --   SET @cTaskStatus    = '9'
+      --   SET @cTTLPickedQty  = ''
+      --   SET @cTTLScannedQty = ''
+      --END
+      
+   END
+   
+   IF @nStep = 5 
+   BEGIN
+      
+      IF EXISTS ( SELECT 1 FROM dbo.PickDetail WITH (NOLOCK) 
+                  WHERE StorerKey = @cStorerKey
+                  AND DropID = @cDropID 
+                  AND Status < '5' ) 
+      BEGIN
+            --ROLLBACK TRAN
+            SET @nErrNo = 101521
+            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- 'PickNotDone'
+            GOTO ROLLBACKTRAN
+      END
+      
+      SELECT   @cPickSlipNo = PickSlipNo
+             , @cDropIDType = DropIDType
+             , @cLoadKey    = LoadKey
+      FROM dbo.DropID WITH (NOLOCK)
+      WHERE DropID = @cDropID
+      AND Status = '5'
+      
+      IF @cDropIDType = 'MULTIS'
+      BEGIN
+         SET @cDropOrderKey = ''
+         
+         SELECT Top 1 @cDropOrderKey = PD.OrderKey 
+         FROM dbo.PickDetail PD WITH (NOLOCK)
+         INNER JOIN dbo.Orders O WITH (NOLOCK) ON O.OrderKey = PD.OrderKey 
+         WHERE PD.StorerKey =  @cStorerKey
+         AND PD.DropID = @cDropID
+         AND PD.Status < '9' 
+         AND O.LoadKey = @cLoadKey 
+         Order by PD.Editdate Desc
+         
+         IF EXISTS ( SELECT 1 FROM dbo.PickDetail WITH (NOLOCK) 
+                     WHERE StorerKey = @cStorerKey
+                     AND OrderKey = @cDropOrderKey
+                     AND Status < '5' ) 
+         BEGIN
+            SET @nErrNo = 101524
+            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- 'PickNotComplete'
+            GOTO ROLLBACKTRAN
+         END 
+      END
+      
+      EXECUTE dbo.nspg_GetKey  
+               'RDTECOMM',  
+               10,  
+               @cBatchKey  OUTPUT,  
+               @bsuccess   OUTPUT,  
+               @nerrNo     OUTPUT,  
+               @cerrmsg    OUTPUT  
+      
+      
+      IF @cDropIDType = 'MULTIS' AND @cOption = '1' 
+      BEGIN
+         
+         
+          /****************************
+          INSERT INTO rdtECOMMLog
+         ****************************/
+         INSERT INTO rdt.rdtECOMMLog(Mobile, ToteNo, Orderkey, Sku, DropIDType, ExpectedQty, ScannedQty, AddWho, AddDate, EditWho, EditDate, BatchKey)
+         SELECT @nMobile, @cDropID, PK.Orderkey, PK.SKU, @cDropIDType, SUM(PK.Qty), 0, @cUserName, GETDATE(), @cUserName, GETDATE(), @cBatchKey 
+         FROM dbo.PICKDETAIL PK WITH (NOLOCK)
+         JOIN dbo.Orders O WITH (NOLOCK) ON O.Orderkey = PK.Orderkey
+         WHERE PK.DROPID = @cDropID
+           AND (PK.Status IN ('3', '5') OR PK.ShipFlag = 'P')       
+           AND PK.CaseID = ''
+           AND O.Type IN  ( SELECT CL.Code FROM dbo.CodeLKUP CL WITH (NOLOCK) 
+                           WHERE CL.ListName = 'ECOMTYPE'
+                           AND CL.StorerKey = CASE WHEN CL.StorerKey = '' THEN '' ELSE O.StorerKey END) 
+           AND PK.Qty > 0 -- SOS# 329265
+           AND O.SOStatus NOT IN ( 'PENDPACK', 'HOLD', 'PENDCANC' ) 
+         GROUP BY PK.OrderKey, PK.SKU
+   
+         IF @@ROWCOUNT = 0 -- No data inserted
+         BEGIN
+            --ROLLBACK TRAN
+            SET @nErrNo = 101501
+            SET @cErrMsg = rdt.rdtgetmessage( @nErrNo, @cLangCode, 'DSP') -- 'NoRecToProcess'
+            GOTO ROLLBACKTRAN
+         END
+      
+         SET @nTotalScannedQty = 0
+   --      SELECT @nTotalScannedQty = SUM(QTY)
+   --      FROM dbo.PickDetail PD WITH (NOLOCK)
+   --      INNER JOIN dbo.PickHeader PH WITH (NOLOCK) ON PH.OrderKey = PD.OrderKey
+   --      INNER JOIN dbo.Orders O WITH (NOLOCK) ON O.OrderKey = PH.OrderKey
+   --      WHERE PD.DropID = @cDropID
+   --      AND (PD.Status IN  ('3','5') OR PD.ShipFlag = 'P')  
+   --      AND PD.CaseID <> ''
+   --      AND O.LoadKey = @cLoadKey
+   --      AND O.SOStatus NOT IN ( 'PENDPACK', 'HOLD', 'PENDCANC' ) 
+   --      AND PH.PickHeaderKey = @cPickSlipNo 
+         
+         --SELECT @nTotalScannedQty = SUM(ScannedQty) 
+         --FROM rdt.rdtECOMMLog WITH (NOLOCK)
+         --WHERE ToteNo = @cDropID
+         --AND Status = '9'
+         --AND OrderKey = CASE WHEN @cDropIDType = 'SINGLES' THEN OrderKey ELSE @cOrderKey END
+         --AND AddWho = @cUserName
+         
+         SELECT @nTotalPickedQty  = SUM(ExpectedQty)
+         FROM rdt.rdtECOMMLog WITH (NOLOCK)
+         WHERE ToteNo = @cDropID
+         AND Status = '0'
+         AND OrderKey = CASE WHEN ISNULL(@cOrderKey,'')  = '' THEN OrderKey ELSE @cOrderKey END
+         AND AddWho = @cUserName
+         AND Mobile = @nMobile
+         
+         SELECT @cOrderKey = OrderKey 
+         FROM rdt.rdtEcommLog WITH (NOLOCK)
+         WHERE ToteNo = @cDropID 
+         AND Status = '0' 
+         AND AddWho = @cUserName
+         AND Mobile = @nMobile
+         
+                 
+         
+         SET @cOrderKey      = @cOrderKey
+         SET @cTrackNo       = ''    
+         SET @cCartonType    = ''    
+         SET @cWeight        = ''    
+         SET @cTaskStatus    = '1' 
+         SET @cTTLPickedQty  = @nTotalPickedQty
+         SET @cTTLScannedQty = '0'
+         
+      
+      END 
+      ELSE
+      BEGIN
+         SET @cOrderKey      = ''
+         SET @cTrackNo       = ''    
+         SET @cCartonType    = ''    
+         SET @cWeight        = ''    
+         SET @cTaskStatus    = '9' 
+         SET @cTTLPickedQty  = '0'
+         SET @cTTLScannedQty = '0'
+      END
+      
+      
+   END   
+   
+   GOTO QUIT       
+         
+RollBackTran:      
+   ROLLBACK TRAN rdt_842ExtUpdSP02 -- Only rollback change made here      
+      
+Quit:      
+   WHILE @@TRANCOUNT > @nTranCount -- Commit until the level we started      
+      COMMIT TRAN rdt_842ExtUpdSP02      
+        
+      
+END  
+
+
+GO

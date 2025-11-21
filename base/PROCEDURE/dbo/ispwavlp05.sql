@@ -1,0 +1,701 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+/************************************************************************/  
+/* Store Procedure:  ispWAVLP05                                         */  
+/* Creation Date:  17-Oct-2017                                          */  
+/* Copyright: LFL                                                       */  
+/* Written by:                                                          */  
+/*                                                                      */  
+/* Purpose:  WMS-3191 HK Nike Create load plan by wave                  */  
+/*           Populate route,delivery date, loadpickmethod = 'C'         */
+/*           (Duplicate from ispWAVLP03)                                */
+/*                                                                      */  
+/* Input Parameters:  @c_WaveKey  - (WaveKey)                           */  
+/*                                                                      */  
+/* Output Parameters:  None                                             */  
+/*                                                                      */  
+/* Return Status:  None                                                 */  
+/*                                                                      */  
+/* Usage:                                                               */  
+/*                                                                      */  
+/* Local Variables:                                                     */  
+/*                                                                      */  
+/* Called By:  RMC Generate Load Plan By Consignee                      */
+/*             wrapper: isp_WaveGenLoadPlan_Wrapper                     */  
+/*             storerconfig: WAVEGENLOADPLAN                            */ 
+/*                                                                      */  
+/* PVCS Version: 1.4                                                    */  
+/*                                                                      */  
+/* Version: 5.4                                                         */  
+/*                                                                      */  
+/* Data Modifications:                                                  */  
+/*                                                                      */  
+/* Updates:                                                             */  
+/* Date        Author   Ver  Purposes                                   */  
+/* 27-Jun-2018 NJOW01   1.0  Fix - include NCHAR                        */
+/* 28-Jan-2019 TLTING_ext 1.1  enlarge externorderkey field length     */
+/************************************************************************/  
+CREATE PROC [dbo].[ispWAVLP05]   
+   @c_WaveKey NVARCHAR(10),  
+   @b_Success int OUTPUT,   
+   @n_err     int OUTPUT,   
+   @c_errmsg  NVARCHAR(250) OUTPUT   
+AS  
+BEGIN  
+  
+   SET NOCOUNT ON   -- SQL 2005 Standard  
+   SET QUOTED_IDENTIFIER OFF   
+   SET ANSI_NULLS OFF     
+   SET CONCAT_NULL_YIELDS_NULL OFF      
+  
+   DECLARE @c_ConsigneeKey      NVARCHAR( 15)  
+           ,@c_Priority          NVARCHAR( 10)  
+           ,@c_C_Company         NVARCHAR( 45)  
+           ,@c_OrderKey          NVARCHAR( 10)  
+           ,@c_Facility          NVARCHAR( 5)  
+           ,@c_ExternOrderKey    NVARCHAR( 50)    --tlting_ext
+           ,@c_StorerKey         NVARCHAR( 15)  
+           ,@c_Route             NVARCHAR( 10)  
+           ,@c_debug             NVARCHAR( 1)  
+           ,@c_loadkey           NVARCHAR( 10)  
+           ,@n_continue          INT  
+           ,@n_StartTranCnt      INT  
+           ,@d_OrderDate         DATETIME  
+           ,@d_Delivery_Date     DATETIME   
+           ,@c_OrderType         NVARCHAR( 10)  
+           ,@c_Door              NVARCHAR( 10)  
+           ,@c_DeliveryPlace     NVARCHAR( 30)  
+           ,@c_OrderStatus       NVARCHAR( 10)  
+           ,@n_loadcount         INT  
+           ,@n_TotWeight         FLOAT  
+           ,@n_TotCube           FLOAT  
+           ,@n_TotOrdLine        INT  
+                                    
+ DECLARE @c_ListName NVARCHAR(10)  
+         ,@c_Code NVARCHAR(30) -- e.g. ORDERS01  
+         ,@c_Description NVARCHAR(250)  
+         ,@c_TableColumnName NVARCHAR(250)  -- e.g. ORDERS.Orderkey  
+         ,@c_TableName NVARCHAR(30)  
+         ,@c_ColumnName NVARCHAR(30)  
+         ,@c_ColumnType NVARCHAR(10)  
+         ,@c_SQLField NVARCHAR(2000)  
+         ,@c_SQLWhere NVARCHAR(2000)  
+         ,@c_SQLGroup NVARCHAR(2000)  
+         ,@c_SQLDYN01 NVARCHAR(2000)  
+         ,@c_SQLDYN02 NVARCHAR(2000)  
+         ,@c_SQLDYN03 NVARCHAR(2000)
+         ,@c_Field01 NVARCHAR(60)  
+         ,@c_Field02 NVARCHAR(60)  
+         ,@c_Field03 NVARCHAR(60)  
+         ,@c_Field04 NVARCHAR(60)  
+         ,@c_Field05 NVARCHAR(60)  
+         ,@c_Field06 NVARCHAR(60)  
+         ,@c_Field07 NVARCHAR(60)  
+         ,@c_Field08 NVARCHAR(60)  
+         ,@c_Field09 NVARCHAR(60)  
+         ,@c_Field10 NVARCHAR(60)  
+         ,@n_cnt int  
+         ,@c_FoundLoadkey NVARCHAR(10)
+         ,@c_NoOfOrderAllowPTL NVARCHAR(10)
+         ,@c_Userdefine01 NVARCHAR(20)
+         ,@c_DocType             NVARCHAR(1) --NJOW01
+         ,@c_SuperOrderFlag      NVARCHAR(1) --NJOW01
+         ,@c_DefaultStrategy     NVARCHAR(1) --NJOW01
+         ,@n_NoOfGroupField      INT --NJOW01
+         ,@c_Load_Userdef1       NVARCHAR(4000) --NJOW01    
+         ,@c_Authority           NVARCHAR(10) --NJOW01
+     
+          
+ SELECT @n_StartTranCnt=@@TRANCOUNT, @n_continue = 1, @n_loadcount = 0  
+  
+-------------------------- Wave Validation ------------------------------    
+  IF NOT EXISTS(SELECT 1 
+                 FROM WaveDetail WITH (NOLOCK)   
+                 WHERE WaveKey = @c_WaveKey)  
+ BEGIN  
+  SELECT @n_continue = 3  
+  SELECT @n_err = 63500  
+  SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": No Orders being populated into WaveDetail. (ispWAVLP05)"  
+  GOTO RETURN_SP  
+ END  
+  
+ IF @n_continue = 1 OR @n_continue = 2
+ BEGIN 	
+ 	  SELECT TOP 1 @c_Storerkey = Storerkey,
+ 	               @c_Facility = Facility
+ 	  FROM ORDERS OH WITH (NOLOCK) 
+ 	  JOIN WAVEDETAIL AS WD WITH (NOLOCK) ON WD.OrderKey = OH.OrderKey 
+ 	  WHERE WD.WaveKey = @c_WaveKey 
+ 	  	  
+    SELECT @b_success = 0
+    EXECUTE nspGetRight @c_facility, 
+                        @c_StorerKey,   -- Storer
+                        NULL,           -- No Sku in this Case
+                        'NoOfOrderAllowPTL',        -- ConfigKey
+                        @b_success           output, 
+                        @c_NoOfOrderAllowPTL output, 
+                        @n_err               output, 
+                        @c_errmsg            output
+
+     IF @b_success <> 1
+     BEGIN
+     	  SELECT @n_continue = 3
+   	    GOTO RETURN_SP  
+     END
+     ELSE
+     BEGIN
+     	  IF ISNUMERIC(@c_NoOfOrderAllowPTL) = 1
+     	  BEGIN
+     	     IF CAST(@c_NoOfOrderAllowPTL AS INT) > 0
+     	     BEGIN     	     	
+  	          SELECT @c_Userdefine01 = UserDefine01
+    	        FROM WAVE (NOLOCK)
+    	        WHERE Wavekey = @c_Wavekey
+    	        
+    	        IF ISNULL(@c_Userdefine01,'') = ''
+    	        BEGIN
+    	        	 SELECT TOP 1 @c_userdefine01 = CL.Short
+    	        	 FROM WAVEDETAIL WD(NOLOCK)
+    	        	 JOIN ORDERS O (NOLOCK) ON WD.Orderkey = O.Orderkey
+    	        	 JOIN CODELKUP CL (NOLOCK) ON O.OrderGroup = CL.Code AND CL.Listname = 'ORDERGROUP'
+    	        	 AND WD.Wavekey = @c_Wavekey 
+    	        END
+    	            	        
+    	        IF ISNULL(@c_Userdefine01,'') NOT IN('L','N')
+    	        BEGIN
+                 SELECT @n_continue = 3  
+                 SELECT @c_errmsg = CONVERT(NVARCHAR(250),@n_err), @n_err = 63501   -- Should Be Set To The SQL Errmessage but I don't know how to do so.  
+                 SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Invalid Code to determine Launch or Retail/Wholesale Order (ispWAVLP05)"  
+                 GOTO RETURN_SP       	     	  	  
+    	        END 
+    	        
+    	       	IF @c_Userdefine01 = 'L'     	
+     	     	     IF (SELECT COUNT(DISTINCT PICKDETAIL.Orderkey) 
+     	     	         FROM ORDERS (NOLOCK) 
+     	     	         JOIN PICKDETAIL (NOLOCK) ON ORDERS.Orderkey = PICKDETAIL.Orderkey
+     	     	         WHERE ORDERS.Userdefine09 = @c_Wavekey
+     	     	         AND PICKDETAIL.UOM IN('6','7')) > CAST(@c_NoOfOrderAllowPTL AS INT)
+     	     	     BEGIN
+                    SELECT @n_continue = 3  
+                    SELECT @n_err = 63502  
+                    SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": No. of Wave Plan Orders Exceeded PTL Limit "+ RTRIM(@c_NoOfOrderAllowPTL) +" (ispWAVLP05)"  
+                    GOTO RETURN_SP       	     	  	  
+     	     	     END
+     	     END
+     	  END
+     END
+ END
+   
+-------------------------- Construct Load Plan Dynamic Grouping ------------------------------    
+ IF @n_continue = 1 OR @n_continue = 2  
+ BEGIN                    
+   SELECT @c_listname = CODELIST.Listname  
+   FROM WAVE (NOLOCK)   
+   JOIN CODELIST (NOLOCK) ON WAVE.LoadPlanGroup = CODELIST.Listname AND CODELIST.ListGroup = 'WAVELPGROUP'  
+   WHERE WAVE.Wavekey = @c_WaveKey  
+     
+   IF ISNULL(@c_ListName,'') = ''  
+   BEGIN  
+     SELECT @n_continue = 3  
+     SELECT @n_err = 63503  
+     SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Empty/Invalid Load Plan Group Is Not Allowed. (LIST GROUP: WAVELPGROUP) (ispWAVLP05)"  
+       GOTO RETURN_SP                      
+     END  
+       
+     DECLARE CUR_CODELKUP CURSOR LOCAL FAST_FORWARD READ_ONLY FOR  
+        SELECT TOP 10 Code, Description, Long   
+        FROM   CODELKUP WITH (NOLOCK)  
+        WHERE  ListName = @c_ListName  
+        ORDER BY Code  
+       
+     OPEN CUR_CODELKUP  
+       
+     FETCH NEXT FROM CUR_CODELKUP INTO @c_Code, @c_Description, @c_TableColumnName  
+       
+     SELECT @c_SQLField = '', @c_SQLWhere = '', @c_SQLGroup = '', @n_cnt = 0  
+     WHILE @@FETCH_STATUS <> -1  
+     BEGIN  
+        SET @n_cnt = @n_cnt + 1   
+        SET @c_TableName = LEFT(@c_TableColumnName, CharIndex('.', @c_TableColumnName) - 1)  
+        SET @c_ColumnName = SUBSTRING(@c_TableColumnName,   
+                            CharIndex('.', @c_TableColumnName) + 1, LEN(@c_TableColumnName) - CharIndex('.', @c_TableColumnName))  
+  
+        IF ISNULL(RTRIM(@c_TableName), '') <> 'ORDERS'   
+        BEGIN  
+        SELECT @n_continue = 3  
+        SELECT @n_err = 63504  
+        SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Grouping Only Allow Refer To Orders Table's Fields. Invalid Table: "+RTRIM(@c_TableColumnName)+" (ispWAVLP05)"  
+           GOTO RETURN_SP                      
+        END   
+       
+        SET @c_ColumnType = ''  
+        SELECT @c_ColumnType = DATA_TYPE   
+        FROM   INFORMATION_SCHEMA.COLUMNS   
+        WHERE  TABLE_NAME = @c_TableName  
+        AND    COLUMN_NAME = @c_ColumnName  
+       
+        IF ISNULL(RTRIM(@c_ColumnType), '') = ''   
+        BEGIN  
+         SELECT @n_continue = 3  
+         SELECT @n_err = 63505  
+         SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Invalid Column Name: " + RTRIM(@c_TableColumnName)+ ". (ispWAVLP05)"  
+           GOTO RETURN_SP                      
+        END   
+          
+        IF @c_ColumnType IN ('float', 'money', 'int', 'decimal', 'numeric', 'tinyint', 'real', 'bigint','text')  
+        BEGIN  
+         SELECT @n_continue = 3  
+         SELECT @n_err = 63506  
+         SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Numeric/Text Column Type Is Not Allowed For Load Plan Grouping: " + RTRIM(@c_TableColumnName)+ ". (ispWAVLP05)"  
+           GOTO RETURN_SP                      
+        END   
+       
+        IF @c_ColumnType IN ('char', 'nvarchar', 'varchar','nchar') --NJOW01   
+        BEGIN  
+           SELECT @c_SQLField = @c_SQLField + ',' + RTRIM(@c_TableColumnName)  
+           SELECT @c_SQLWhere = @c_SQLWhere + ' AND ' + RTRIM(@c_TableColumnName) + '=' +   
+                  CASE WHEN @n_cnt = 1 THEN '@c_Field01'  
+                       WHEN @n_cnt = 2 THEN '@c_Field02'  
+                       WHEN @n_cnt = 3 THEN '@c_Field03'  
+                       WHEN @n_cnt = 4 THEN '@c_Field04'  
+                       WHEN @n_cnt = 5 THEN '@c_Field05'  
+                       WHEN @n_cnt = 6 THEN '@c_Field06'  
+                       WHEN @n_cnt = 7 THEN '@c_Field07'  
+                       WHEN @n_cnt = 8 THEN '@c_Field08'  
+                       WHEN @n_cnt = 9 THEN '@c_Field09'  
+                       WHEN @n_cnt = 10 THEN '@c_Field10' END  
+        END           
+  
+        IF @c_ColumnType IN ('datetime')     --(Wan01) 
+        BEGIN  
+           SELECT @c_SQLField = @c_SQLField + ', CONVERT(NVARCHAR(10),' + RTRIM(@c_TableColumnName) + ',112)'  
+           SELECT @c_SQLWhere = @c_SQLWhere + ' AND CONVERT(NVARCHAR(10),' + RTRIM(@c_TableColumnName) + ',112)=' +   
+                  CASE WHEN @n_cnt = 1 THEN '@c_Field01'  
+                       WHEN @n_cnt = 2 THEN '@c_Field02'  
+                       WHEN @n_cnt = 3 THEN '@c_Field03'  
+                       WHEN @n_cnt = 4 THEN '@c_Field04'  
+                       WHEN @n_cnt = 5 THEN '@c_Field05'  
+                       WHEN @n_cnt = 6 THEN '@c_Field06'  
+                       WHEN @n_cnt = 7 THEN '@c_Field07'  
+                       WHEN @n_cnt = 8 THEN '@c_Field08'  
+                       WHEN @n_cnt = 9 THEN '@c_Field09'  
+                       WHEN @n_cnt = 10 THEN '@c_Field10' END  
+        END  
+                                      
+        FETCH NEXT FROM CUR_CODELKUP INTO @c_Code, @c_Description, @c_TableColumnName  
+     END   
+     CLOSE CUR_CODELKUP  
+     DEALLOCATE CUR_CODELKUP   
+
+     SELECT @n_NoOfGroupField = @n_cnt --NJOW01
+       
+     SELECT @c_SQLGroup = @c_SQLField  
+     WHILE @n_cnt < 10  
+     BEGIN  
+        SET @n_cnt = @n_cnt + 1  
+         SELECT @c_SQLField = @c_SQLField + ','''''        
+  
+        SELECT @c_SQLWhere = @c_SQLWhere + ' AND ''''=' +   
+               CASE WHEN @n_cnt = 1 THEN 'ISNULL(@c_Field01,'''')'  
+                    WHEN @n_cnt = 2 THEN 'ISNULL(@c_Field02,'''')'  
+                    WHEN @n_cnt = 3 THEN 'ISNULL(@c_Field03,'''')'  
+                    WHEN @n_cnt = 4 THEN 'ISNULL(@c_Field04,'''')'  
+                    WHEN @n_cnt = 5 THEN 'ISNULL(@c_Field05,'''')'  
+                    WHEN @n_cnt = 6 THEN 'ISNULL(@c_Field06,'''')'  
+                    WHEN @n_cnt = 7 THEN 'ISNULL(@c_Field07,'''')'  
+                    WHEN @n_cnt = 8 THEN 'ISNULL(@c_Field08,'''')'  
+                    WHEN @n_cnt = 9 THEN 'ISNULL(@c_Field09,'''')'  
+                    WHEN @n_cnt = 10 THEN 'ISNULL(@c_Field10,'''')' END          
+     END  
+  END  
+
+WHILE @@ROWCOUNT > 0
+   COMMIT TRAN
+               
+      
+-------------------------- CREATE LOAD PLAN ------------------------------     
+   IF @n_continue = 1 OR @n_continue = 2  
+   BEGIN        
+      SELECT @c_SQLDYN01 = 'DECLARE cur_LPGroup CURSOR FAST_FORWARD READ_ONLY FOR '  
+      + ' SELECT ORDERS.Storerkey ' + @c_SQLField   
+      + ' FROM ORDERS WITH (NOLOCK) '  
+      + ' JOIN WaveDetail WD WITH (NOLOCK) ON (ORDERS.OrderKey = WD.OrderKey) '  
+      +'  WHERE WD.WaveKey = ''' +  RTRIM(@c_WaveKey) +''''  
+      + ' AND ISNULL(ORDERS.Loadkey,'''') = '''' '  
+      + ' AND ORDERS.Status NOT IN (''9'',''CANC'') '  
+      + ' GROUP BY ORDERS.Storerkey ' + @c_SQLGroup  
+      + ' ORDER BY ORDERS.Storerkey ' + @c_SQLGroup  
+        
+      EXEC (@c_SQLDYN01)  
+  
+      OPEN cur_LPGroup  
+      FETCH NEXT FROM cur_LPGroup INTO @c_Storerkey, @c_Field01, @c_Field02, @c_Field03, @c_Field04, @c_Field05,   
+                                       @c_Field06, @c_Field07, @c_Field08, @c_Field09, @c_Field10  
+      WHILE @@FETCH_STATUS = 0  
+      BEGIN
+      	BEGIN TRAN TRN_LOAD;
+      	  
+         SET @c_FoundLoadkey = ''
+         
+         SELECT @c_SQLDYN03 = ' SELECT TOP 1 @c_FoundLoadkey = ORDERS.Loadkey '  
+         + ' FROM ORDERS WITH (NOLOCK) '  
+         + ' JOIN WaveDetail WD WITH (NOLOCK) ON (ORDERS.OrderKey = WD.OrderKey) '  
+         + ' WHERE  ORDERS.StorerKey = @c_StorerKey '   
+         + ' AND WD.WaveKey = @c_WaveKey '  
+         + ' AND ORDERS.Status NOT IN (''9'',''CANC'') '  
+         + ' AND ISNULL(ORDERS.Loadkey,'''') <> '''' '  
+         + @c_SQLWhere  
+         + ' ORDER BY ORDERS.Loadkey DESC '  
+		           
+        EXEC sp_executesql @c_SQLDYN03,   
+             N'@c_Storerkey NVARCHAR(15), @c_Wavekey NVARCHAR(10), @c_Field01 NVARCHAR(60), @c_Field02 NVARCHAR(60),@c_Field03 NVARCHAR(60),@c_Field04 NVARCHAR(60),  
+               @c_Field05 NVARCHAR(60), @c_Field06 NVARCHAR(60), @c_Field07 NVARCHAR(60), @c_Field08 NVARCHAR(60), @c_Field09 NVARCHAR(60), @c_Field10 NVARCHAR(60), @c_FoundLoadkey NVARCHAR(10) OUTPUT',   
+             @c_Storerkey,  
+             @c_Wavekey,                        
+             @c_Field01,   
+             @c_Field02,   
+             @c_Field03,   
+             @c_Field04,    
+             @c_Field05,   
+             @c_Field06,   
+             @c_Field07,   
+             @c_Field08,   
+             @c_Field09,   
+             @c_Field10,  
+             @c_FoundLoadkey OUTPUT   
+               
+         IF ISNULL(@c_FoundLoadkey,'') <> '' AND NOT EXISTS (SELECT 1        
+                                                             FROM ORDERS (NOLOCK)                 
+                                                             WHERE Loadkey = @c_FoundLoadkey 
+                                                             AND ISNULL(Loadkey,'') <> ''
+                                                             AND userdefine09 <> @c_Wavekey)   --NJOW02
+         BEGIN                                                                                                                            	  
+            SET @c_loadkey = @c_FoundLoadkey            
+         END
+         ELSE  
+         BEGIN  
+            SELECT @b_success = 0  
+            EXECUTE nspg_GetKey  
+               'LOADKEY',  
+               10,  
+               @c_loadkey     OUTPUT,  
+               @b_success     OUTPUT,  
+               @n_err         OUTPUT,  
+               @c_errmsg      OUTPUT  
+              
+            IF @b_success <> 1  
+            BEGIN  
+               SELECT @n_continue = 3  
+               GOTO RETURN_SP  
+            END  
+              
+            SELECT TOP 1 
+               @c_Facility = OH.Facility     
+ 	         FROM ORDERS OH WITH (NOLOCK) 
+ 	         JOIN WAVEDETAIL AS WD WITH (NOLOCK) ON WD.OrderKey = OH.OrderKey             
+            WHERE WD.WaveKey = @c_WaveKey  
+               AND OH.Storerkey = @c_StorerKey  
+               AND OH.Status NOT IN ('9','CANC')  
+               AND (OH.Loadkey = '' OR OH.LoadKey IS NULL)   
+              
+            -- Create loadplan          
+            INSERT INTO LoadPlan (LoadKey, Facility, Userdefine09)  
+            VALUES (@c_loadkey, @c_Facility, @c_WaveKey )  
+              
+          SELECT @n_err = @@ERROR  
+              
+          IF @n_err <> 0   
+          BEGIN  
+           SELECT @n_continue = 3  
+           SELECT @n_err = 63507  
+           SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Insert Into LOADPLAN Failed. (ispWAVLP05)"  
+           GOTO RETURN_SP  
+          END  
+       END  
+         
+       SELECT @n_loadcount = @n_loadcount + 1  
+            
+         -- Create loadplan detail  
+     
+         SELECT @c_SQLDYN02 = 'DECLARE cur_loadpland CURSOR FAST_FORWARD READ_ONLY FOR '  
+         + ' SELECT ORDERS.OrderKey '  
+         + ' FROM ORDERS WITH (NOLOCK) '  
+         + ' JOIN WaveDetail WD WITH (NOLOCK) ON (ORDERS.OrderKey = WD.OrderKey) '  
+         + ' WHERE  ORDERS.StorerKey = @c_StorerKey ' +  
+         + ' AND WD.WaveKey = @c_WaveKey '  
+         + ' AND ORDERS.Status NOT IN (''9'',''CANC'') '  
+         + ' AND ISNULL(ORDERS.Loadkey,'''') = '''' '  
+         + @c_SQLWhere  
+         + ' ORDER BY ORDERS.OrderKey '  
+  
+        EXEC sp_executesql @c_SQLDYN02,   
+             N'@c_Storerkey NVARCHAR(15), @c_Wavekey NVARCHAR(10), @c_Field01 NVARCHAR(60), @c_Field02 NVARCHAR(60),@c_Field03 NVARCHAR(60),@c_Field04 NVARCHAR(60),  
+               @c_Field05 NVARCHAR(60), @c_Field06 NVARCHAR(60), @c_Field07 NVARCHAR(60), @c_Field08 NVARCHAR(60), @c_Field09 NVARCHAR(60), @c_Field10 NVARCHAR(60)',   
+             @c_Storerkey,  
+             @c_Wavekey,                        
+             @c_Field01,   
+             @c_Field02,   
+             @c_Field03,   
+             @c_Field04,   
+             @c_Field05,   
+             @c_Field06,   
+             @c_Field07,   
+             @c_Field08,   
+             @c_Field09,   
+             @c_Field10   
+  
+         OPEN cur_loadpland  
+  
+         FETCH NEXT FROM cur_loadpland INTO @c_OrderKey  
+         WHILE @@FETCH_STATUS = 0  
+         BEGIN                           
+            IF (SELECT COUNT(1) FROM LoadPlanDetail WITH (NOLOCK) WHERE OrderKey = @c_OrderKey) = 0  
+            BEGIN  
+               SELECT @d_OrderDate = O.OrderDate,   
+                      @d_Delivery_Date = O.DeliveryDate,   
+                      @c_OrderType = O.Type,  
+                      @c_Door = O.Door,  
+                      @c_Route = O.Route,  
+                      @c_DeliveryPlace = O.DeliveryPlace,  
+                      @c_OrderStatus = O.Status,  
+                      @c_priority = O.Priority,  
+                      @n_totweight = SUM(OD.OpenQty * SKU.StdGrossWgt),  
+                      @n_totcube = SUM(OD.OpenQty * SKU.StdCube),  
+                      @n_TotOrdLine = COUNT(DISTINCT OD.OrderLineNumber),  
+                      @c_C_Company = O.C_Company,  
+                      @c_ExternOrderkey = O.ExternOrderkey,  
+                      @c_Consigneekey = O.Consigneekey  
+               FROM Orders O WITH (NOLOCK)  
+               JOIN Orderdetail OD WITH (NOLOCK) ON (O.Orderkey = OD.Orderkey)  
+               JOIN SKU WITH (NOLOCK) ON (OD.Storerkey = SKU.Storerkey AND OD.Sku = SKU.Sku)  
+               WHERE O.OrderKey = @c_OrderKey    
+               GROUP BY O.OrderDate,   
+                        O.DeliveryDate,   
+                        O.Type,  
+                        O.Door,  
+                        O.Route,  
+                        O.DeliveryPlace,  
+                        O.Status,  
+                        O.Priority,  
+                        O.C_Company,  
+                        O.ExternOrderkey,  
+                        O.Consigneekey  
+  
+               EXEC isp_InsertLoadplanDetail   
+                    @cLoadKey          = @c_LoadKey,  
+                    @cFacility         = @c_Facility,              
+                    @cOrderKey         = @c_OrderKey,             
+                    @cConsigneeKey     = @c_Consigneekey,  
+                    @cPrioriry         = @c_Priority,    
+                    @dOrderDate        = @d_OrderDate,  
+                    @dDelivery_Date    = @d_Delivery_Date,      
+                    @cOrderType        = @c_OrderType,     
+                    @cDoor             = @c_Door,              
+                    @cRoute            = @c_Route,                          
+                    @cDeliveryPlace    = @c_DeliveryPlace,  
+                    @nStdGrossWgt      = @n_totweight,        
+                    @nStdCube          = @n_totcube,           
+                    @cExternOrderKey   = @c_ExternOrderKey,     
+                    @cCustomerName     = @c_C_Company,  
+                    @nTotOrderLines    = @n_TotOrdLine,      
+                    @nNoOfCartons      = 0,  
+                    @cOrderStatus      = '0',   
+                    @b_Success         = @b_Success OUTPUT,   
+                    @n_err             = @n_err     OUTPUT,  
+                    @c_errmsg          = @c_errmsg  OUTPUT                 
+     
+               SELECT @n_err = @@ERROR  
+     
+               IF @n_err <> 0   
+               BEGIN  
+                  SELECT @n_continue = 3  
+                  SELECT @n_err = 63508  
+                  SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Insert Into LOADPLANDETAIL Failed. (ispWAVLP05)"  
+                  GOTO RETURN_SP  
+               END  
+            END  
+            
+            WHILE @@ROWCOUNT > 0
+               COMMIT TRAN
+            
+            FETCH NEXT FROM cur_loadpland INTO @c_OrderKey  
+         END  
+         CLOSE cur_loadpland  
+         DEALLOCATE cur_loadpland  
+  
+         --NJOW01 Start
+         SELECT TOP 1 @c_storerkey = ORDERS.Storerkey,
+                      @c_facility = ORDERS.Facility,
+                      @c_Doctype = ORDERS.Doctype 
+         FROM LOADPLANDETAIL (NOLOCK)
+         JOIN ORDERS (NOLOCK) ON LOADPLANDETAIL.Orderkey = ORDERS.Orderkey
+         WHERE LOADPLANDETAIL.Loadkey = @c_Loadkey
+
+         SELECT @c_SuperOrderFlag = '', @c_DefaultStrategy = '', @c_Load_Userdef1 = ''
+
+         SELECT @c_authority = '', @b_success = 0
+         EXECUTE nspGetRight
+         @c_facility,
+         @c_StorerKey,          -- Storer
+         NULL,   -- Sku
+         'AutoUpdSupOrdflag', -- ConfigKey
+         @b_success    output,
+         @c_authority  output,
+         @n_err        output,
+         @c_errmsg     output
+
+         IF @b_success <> 1
+         BEGIN
+           SELECT @n_continue = 3
+           SELECT @c_errmsg = 'ispWAVLP05:' + RTRIM(ISNULL(@c_errmsg,''))
+         END
+         ELSE IF @c_authority  = '1'
+         BEGIN
+         	 SELECT @c_SuperOrderFlag = 'Y'
+         END
+         
+         IF @c_DocType = 'E' 
+         BEGIN
+            SELECT @c_authority = '', @b_success = 0
+            EXECUTE nspGetRight
+            @c_facility,
+            @c_StorerKey,          -- Storer
+            NULL,   -- Sku
+            'GenEcomLPSetSuperOrderFlag', -- ConfigKey
+            @b_success    output,
+            @c_authority  output,
+            @n_err        output,
+            @c_errmsg     output
+            
+            IF @b_success <> 1
+            BEGIN
+              SELECT @n_continue = 3
+              SELECT @c_errmsg = 'ispWAVLP05:' + RTRIM(ISNULL(@c_errmsg,''))
+            END
+            ELSE IF @c_authority  = '1'
+            BEGIN
+            	 SELECT @c_SuperOrderFlag = 'Y'
+            END
+
+            SELECT @c_authority = '', @b_success = 0
+            EXECUTE nspGetRight
+            @c_facility,
+            @c_StorerKey,          -- Storer
+            NULL,   -- Sku
+            'GenEcomLPSetDefaultStrategy', -- ConfigKey
+            @b_success    output,
+            @c_authority  output,
+            @n_err        output,
+            @c_errmsg     output
+            
+            IF @b_success <> 1
+            BEGIN
+              SELECT @n_continue = 3
+              SELECT @c_errmsg = 'ispWAVLP05:' + RTRIM(ISNULL(@c_errmsg,''))
+            END
+            ELSE IF @c_authority  = '1'
+            BEGIN
+            	 SELECT @c_DefaultStrategy = 'Y'
+            END
+         END
+
+         SELECT @n_cnt = 1
+         WHILE @n_cnt <= @n_NoOfGroupField
+         BEGIN         	
+           SELECT @c_Load_Userdef1 = @c_Load_Userdef1 + 
+               CASE WHEN @n_cnt = 1 THEN LTRIM(RTRIM(ISNULL(@c_Field01,'')))
+                    WHEN @n_cnt = 2 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field02,'')))
+                    WHEN @n_cnt = 3 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field03,'')))
+                    WHEN @n_cnt = 4 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field04,'')))
+                    WHEN @n_cnt = 5 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field05,'')))
+                    WHEN @n_cnt = 6 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field06,'')))
+                    WHEN @n_cnt = 7 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field07,'')))
+                    WHEN @n_cnt = 8 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field08,'')))
+                    WHEN @n_cnt = 9 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field09,'')))
+                    WHEN @n_cnt = 10 THEN '-' + LTRIM(RTRIM(ISNULL(@c_Field10,''))) END         	
+                        
+            SET @n_cnt = @n_cnt + 1
+         END
+                            
+         UPDATE LOADPLAN WITH (ROWLOCK)
+         SET SuperOrderFlag = CASE WHEN @c_SuperOrderFlag = 'Y' THEN 'Y' ELSE SuperOrderFlag END
+            ,DefaultStrategyKey = CASE WHEN @c_DefaultStrategy = 'Y' THEN 'Y' ELSE DefaultStrategyKey END
+            ,Load_Userdef1 = CASE WHEN @c_Load_Userdef1 <> '' THEN @c_Load_Userdef1 ELSE Load_Userdef1 END
+            ,TrafficCop = NULL
+            ,EditDate = GETDATE()
+            ,EditWho = SUSER_SNAME() 
+            ,Route = @c_Route
+            ,lpuserdefdate01 = @d_Delivery_Date
+            ,LoadPickMethod = 'C'
+         WHERE Loadkey = @c_LoadKey
+         SELECT @n_err = @@ERROR  
+
+         IF @n_err <> 0   
+         BEGIN  
+            SELECT @n_continue = 3  
+            SELECT @n_err = 63518  
+            SELECT @c_errmsg="NSQL"+CONVERT(NVARCHAR(5),@n_err)+": Update Into LOADPLAN Failed. (ispWAVLP05)"  
+            GOTO RETURN_SP  
+         END  
+         --NJOW01 End
+    
+         COMMIT TRAN TRN_LOAD;
+            
+         FETCH NEXT FROM cur_LPGroup INTO @c_Storerkey, @c_Field01, @c_Field02, @c_Field03, @c_Field04, @c_Field05,   
+                         @c_Field06, @c_Field07, @c_Field08, @c_Field09, @c_Field10  
+      END  
+      CLOSE cur_LPGroup  
+      DEALLOCATE cur_LPGroup  
+   END           
+           
+   IF @n_continue = 1 OR @n_continue = 2  
+   BEGIN  
+      IF @n_loadcount > 0  
+         SELECT @c_errmsg = RTRIM(CAST(@n_loadcount AS CHAR)) + ' Load Plan Generated'  
+      ELSE  
+         SELECT @c_errmsg = 'No Load Plan Generated'        
+   END             
+END  
+  
+RETURN_SP:  
+
+IF @n_continue = 3 AND @@TRANCOUNT > 0	--IN00363190
+BEGIN 
+   ROLLBACK TRAN    
+END
+
+WHILE @n_StartTranCnt > @@TRANCOUNT
+   BEGIN TRAN
+  
+IF @n_continue=3 -- Error Occured - Process And Return
+BEGIN
+    SELECT @b_success = 0   
+    IF @@TRANCOUNT=1
+       AND @@TRANCOUNT>@n_StartTranCnt
+    BEGIN
+        ROLLBACK TRAN
+    END
+    ELSE
+    BEGIN
+        WHILE @@TRANCOUNT>@n_StartTranCnt
+        BEGIN
+            COMMIT TRAN
+        END
+    END 
+    EXECUTE nsp_logerror @n_err, @c_errmsg, 'ispWAVLP05' 
+    RAISERROR (@c_errmsg, 16, 1) WITH SETERROR    -- SQL2012 
+    RETURN
+END
+ELSE
+BEGIN
+    SELECT @b_success = 1   
+    WHILE @@TRANCOUNT>@n_StartTranCnt
+    BEGIN
+        COMMIT TRAN
+    END 
+    RETURN
+END
+
+GO

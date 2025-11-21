@@ -1,0 +1,11 @@
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+CREATE   VIEW [dbo].[V_PackTaskDetail] 
+AS  
+SELECT *  
+FROM dbo.PackTaskDetail WITH (NOLOCK) 
+
+GO

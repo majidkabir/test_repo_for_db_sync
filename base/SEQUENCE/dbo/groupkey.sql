@@ -1,0 +1,9 @@
+CREATE SEQUENCE [dbo].[groupkey]
+    AS bigint
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    MAXVALUE 9999999999
+    CYCLE
+    CACHE 50;
+GO

@@ -1,0 +1,170 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+/*************************************************************************/  
+/* Stored Procedure: lsp_ChannelInvHold_Wrapper                          */  
+/* Creation Date: 2021-09-21                                             */  
+/* Copyright: LFL                                                        */  
+/* Written by: Wan                                                       */  
+/*                                                                       */  
+/* Purpose: LFWM-2918 - SCE Channel Management modules  Channel Inventory*/
+/*        : Hold implementations                                         */  
+/*                                                                       */  
+/* Called By:                                                            */  
+/*                                                                       */  
+/*                                                                       */  
+/* Version: 1.0                                                          */  
+/*                                                                       */  
+/* Data Modifications:                                                   */  
+/*                                                                       */  
+/* Updates:                                                              */  
+/* Date        Author   Ver   Purposes                                   */ 
+/* 2021-09-21  Wan      1.0   Created.                                   */
+/* 2021-09-22  Wan      1.0   DevOps Script Combine                      */
+/*************************************************************************/   
+CREATE PROCEDURE [WM].[lsp_ChannelInvHold_Wrapper]  
+      @c_HoldType           NVARCHAR(10)   
+   ,  @c_SourceKey          NVARCHAR(20) = ''  
+   ,  @c_SourceLineNo       NVARCHAR(20) = ''  
+   ,  @c_Facility           NVARCHAR(5)  = ''  
+   ,  @c_Storerkey          NVARCHAR(15) = ''  
+   ,  @c_Sku                NVARCHAR(20) = ''  
+   ,  @c_Channel            NVARCHAR(20) = ''  
+   ,  @c_C_Attribute01      NVARCHAR(30) = ''  
+   ,  @c_C_Attribute02      NVARCHAR(30) = ''  
+   ,  @c_C_Attribute03      NVARCHAR(30) = ''  
+   ,  @c_C_Attribute04      NVARCHAR(30) = ''  
+   ,  @c_C_Attribute05      NVARCHAR(30) = ''  
+   ,  @n_Channel_ID         BIGINT       = 0  
+   ,  @c_Hold               NVARCHAR(1)  = '0'  
+   ,  @c_Remarks            NVARCHAR(255)= ''  
+   ,  @c_HoldTRFType        CHAR(1)      = ''   
+   ,  @n_DelQty             INT          = 0    
+   ,  @n_QtyHoldToAdj       INT          = 0    
+   ,  @n_ChannelTran_ID_Ref BIGINT       = 0   OUTPUT   
+   ,  @n_InvHoldKey         BIGINT       = 0   OUTPUT     
+   ,  @b_Success            INT          = 1   OUTPUT   
+   ,  @n_Err                INT          = 0   OUTPUT
+   ,  @c_Errmsg             NVARCHAR(255)= ''  OUTPUT
+   ,  @c_UserName           NVARCHAR(128)= ''
+AS  
+BEGIN  
+   SET NOCOUNT ON
+   SET QUOTED_IDENTIFIER OFF
+   SET ANSI_NULLS OFF
+   SET CONCAT_NULL_YIELDS_NULL OFF
+
+   DECLARE @n_Continue     INT = 1
+         , @n_StartTCnt    INT = @@TRANCOUNT 
+                 
+         , @n_Count        INT = 0 
+
+   SET @b_Success = 1
+   SET @c_ErrMsg = ''
+
+   SET @n_Err = 0 
+
+   IF SUSER_SNAME() <> @c_UserName
+   BEGIN
+      EXEC [WM].[lsp_SetUser] 
+            @c_UserName = @c_UserName  OUTPUT
+         ,  @n_Err      = @n_Err       OUTPUT
+         ,  @c_ErrMsg   = @c_ErrMsg    OUTPUT
+                
+      IF @n_Err <> 0 
+      BEGIN
+         GOTO EXIT_SP
+      END
+    
+      EXECUTE AS LOGIN = @c_UserName
+   END
+   
+   BEGIN TRAN
+
+   BEGIN TRY
+      EXEC dbo.isp_ChannelInvHoldWrapper
+           @c_HoldType           = @c_HoldType            
+         , @c_SourceKey          = @c_SourceKey          
+         , @c_SourceLineNo       = @c_SourceLineNo       
+         , @c_Facility           = @c_Facility           
+         , @c_Storerkey          = @c_Storerkey          
+         , @c_Sku                = @c_Sku                
+         , @c_Channel            = @c_Channel            
+         , @c_C_Attribute01      = @c_C_Attribute01      
+         , @c_C_Attribute02      = @c_C_Attribute02      
+         , @c_C_Attribute03      = @c_C_Attribute03      
+         , @c_C_Attribute04      = @c_C_Attribute04      
+         , @c_C_Attribute05      = @c_C_Attribute05      
+         , @n_Channel_ID         = @n_Channel_ID        
+         , @c_Hold               = @c_Hold                
+         , @c_Remarks            = @c_Remarks            
+         , @c_HoldTRFType        = @c_HoldTRFType         
+         , @n_DelQty             = @n_DelQty            
+         , @n_QtyHoldToAdj       = @n_QtyHoldToAdj      
+         , @n_ChannelTran_ID_Ref = @n_ChannelTran_ID_Ref OUTPUT 
+         , @b_Success            = @b_Success            OUTPUT  
+         , @n_Err                = @n_Err                OUTPUT  
+         , @c_ErrMsg             = @c_ErrMsg             OUTPUT  
+         , @n_InvHoldKey         = @n_InvHoldKey         OUTPUT  
+
+      IF @b_Success = 0
+      BEGIN
+         SET @n_Continue = 3
+         SET @n_err = 559801
+         SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(6), @n_err) 
+                        + ': Error Executing isp_ChannelInvHoldWrapper. (lsp_ChannelInvHold_Wrapper)'
+                        + '( ' + @c_ErrMsg + ' )'
+         GOTO EXIT_SP
+      END
+   END TRY
+   
+   BEGIN CATCH
+      SET @n_Continue = 3
+      SET @c_ErrMsg = ERROR_MESSAGE() + '. (lsp_ChannelInvHold_Wrapper)'
+      
+      GOTO EXIT_SP
+   END CATCH
+
+   EXIT_SP:
+
+   IF (XACT_STATE()) = -1  
+   BEGIN
+      SET @n_Continue = 3
+      ROLLBACK TRAN
+   END  
+         
+   IF @n_Continue = 3   
+   BEGIN
+      SET @b_Success = 0
+      IF @n_StartTCnt = 0 AND @@TRANCOUNT > @n_StartTCnt
+      BEGIN
+         ROLLBACK TRAN
+      END
+      ELSE
+      BEGIN
+         WHILE @@TRANCOUNT > @n_StartTCnt
+         BEGIN
+            COMMIT TRAN
+         END
+      END
+
+      EXECUTE nsp_logerror @n_err, @c_ErrMsg, 'lsp_ChannelInvHold_Wrapper'
+   END
+   ELSE
+   BEGIN
+      SET @b_Success = 1
+      WHILE @@TRANCOUNT > @n_StartTCnt
+      BEGIN
+         COMMIT TRAN
+      END
+   END
+
+   WHILE @@TRANCOUNT < @n_StartTCnt
+   BEGIN
+      BEGIN TRAN
+   END
+   REVERT
+END  
+
+GO

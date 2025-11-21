@@ -1,0 +1,32 @@
+CREATE TABLE [dbo].[packlog]
+(
+    [PackKey] nvarchar(10) NOT NULL,
+    [PackDescr] nvarchar(45) NOT NULL,
+    [OldPackUOM1] nvarchar(10) NOT NULL,
+    [OldCaseCnt] float NOT NULL,
+    [PackUOM1] nvarchar(10) NOT NULL,
+    [CaseCnt] float NOT NULL,
+    [OLDPackUOM2] nvarchar(10) NOT NULL,
+    [OLDInnerPack] float NOT NULL,
+    [PackUOM2] nvarchar(10) NOT NULL,
+    [InnerPack] float NOT NULL,
+    [OLDPackUOM3] nvarchar(10) NOT NULL,
+    [OLDQty] float NOT NULL,
+    [PackUOM3] nvarchar(10) NOT NULL,
+    [Qty] float NOT NULL,
+    [OLDPackUOM4] nvarchar(10) NOT NULL,
+    [OLDPallet] float NOT NULL,
+    [PackUOM4] nvarchar(10) NOT NULL,
+    [Pallet] float NOT NULL,
+    [EditDate] datetime NOT NULL,
+    [EditWho] nvarchar(128) NOT NULL,
+    [OLDLengthUOM1] float NOT NULL DEFAULT ((0)),
+    [LengthUOM1] float NOT NULL DEFAULT ((0)),
+    [OLDWidththUOM1] float NOT NULL DEFAULT ((0)),
+    [WidthUOM1] float NOT NULL DEFAULT ((0)),
+    [OLDHeightUOM1] float NOT NULL DEFAULT ((0)),
+    [HeightUOM1] float NOT NULL DEFAULT ((0)),
+    [OLDCubeUOM1] float NOT NULL DEFAULT ((0)),
+    [CubeUOM1] float NOT NULL DEFAULT ((0))
+);
+GO

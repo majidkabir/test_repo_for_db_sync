@@ -1,0 +1,33 @@
+CREATE TABLE [dbo].[adjustment]
+(
+    [AdjustmentKey] nvarchar(10) NOT NULL,
+    [StorerKey] nvarchar(15) NOT NULL DEFAULT (' '),
+    [EffectiveDate] datetime NOT NULL DEFAULT (getdate()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [TimeStamp] nvarchar(18) NULL,
+    [CustomerRefNo] nvarchar(10) NULL,
+    [AdjustmentType] nvarchar(3) NULL,
+    [Remarks] nvarchar(200) NULL,
+    [FromToWhse] nvarchar(6) NULL,
+    [Facility] nvarchar(15) NULL,
+    [PrintFlag] nvarchar(1) NULL DEFAULT ('N'),
+    [UserDefine01] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine02] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine03] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine04] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine05] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine06] datetime NULL,
+    [UserDefine07] datetime NULL,
+    [UserDefine08] nvarchar(10) NULL DEFAULT ('N'),
+    [UserDefine09] nvarchar(10) NULL DEFAULT (' '),
+    [UserDefine10] nvarchar(10) NULL DEFAULT (' '),
+    [FinalizedFlag] nvarchar(1) NULL DEFAULT ('N'),
+    [DocType] nvarchar(1) NULL DEFAULT ('A'),
+    CONSTRAINT [PKADJUSTMENT] PRIMARY KEY ([AdjustmentKey])
+);
+GO

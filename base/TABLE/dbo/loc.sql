@@ -1,0 +1,86 @@
+CREATE TABLE [dbo].[loc]
+(
+    [Loc] nvarchar(10) NOT NULL DEFAULT ('UNKNOWN'),
+    [Cube] float NULL DEFAULT ((0)),
+    [Length] float NULL DEFAULT ((0)),
+    [Width] float NULL DEFAULT ((0)),
+    [Height] float NULL DEFAULT ((0)),
+    [LocationType] nvarchar(10) NOT NULL DEFAULT ('OTHER'),
+    [LocationFlag] nvarchar(10) NOT NULL DEFAULT ('NONE'),
+    [LocationHandling] nvarchar(10) NOT NULL DEFAULT ('1'),
+    [LocationCategory] nvarchar(10) NOT NULL DEFAULT ('OTHER'),
+    [LogicalLocation] nvarchar(18) NULL DEFAULT (' '),
+    [CubicCapacity] float NULL DEFAULT ((0)),
+    [WeightCapacity] float NULL DEFAULT ((0)),
+    [Status] nvarchar(10) NULL DEFAULT ('OK'),
+    [LoseId] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [Facility] nvarchar(5) NOT NULL DEFAULT ('F1'),
+    [ABC] nvarchar(1) NOT NULL DEFAULT ('B'),
+    [PickZone] nvarchar(10) NOT NULL DEFAULT (' '),
+    [PutawayZone] nvarchar(10) NOT NULL DEFAULT ('RACK'),
+    [SectionKey] nvarchar(10) NOT NULL DEFAULT ('FACILITY'),
+    [PickMethod] nvarchar(1) NOT NULL DEFAULT (' '),
+    [CommingleSku] nvarchar(1) NOT NULL DEFAULT ('1'),
+    [CommingleLot] nvarchar(1) NOT NULL DEFAULT ('1'),
+    [LocLevel] int NOT NULL DEFAULT ((0)),
+    [Xcoord] int NOT NULL DEFAULT ((0)),
+    [Ycoord] int NOT NULL DEFAULT ((0)),
+    [Zcoord] int NOT NULL DEFAULT ((0)),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [MaxPallet] int NULL DEFAULT ((0)),
+    [LocAisle] nvarchar(10) NULL DEFAULT (' '),
+    [HOSTWHCODE] nvarchar(10) NULL,
+    [CCLogicalLoc] nvarchar(18) NULL DEFAULT (' '),
+    [ChargingPallet] float NULL DEFAULT ((0)),
+    [EditWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [LocCheckDigit] nvarchar(10) NULL DEFAULT (''),
+    [LastCycleCount] datetime NULL,
+    [CycleCountFrequency] int NULL,
+    [LoseUCC] nvarchar(1) NULL DEFAULT (''),
+    [NoMixLottable01] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable02] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable03] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable04] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [LocBay] nvarchar(10) NULL DEFAULT (''),
+    [PALogicalLoc] nvarchar(10) NULL DEFAULT (''),
+    [Score] int NOT NULL DEFAULT ((0)),
+    [LocationRoom] nvarchar(30) NULL,
+    [LocationGroup] nvarchar(30) NULL DEFAULT (''),
+    [NoMixLottable05] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable06] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable07] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable08] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable09] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable10] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable11] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable12] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable13] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable14] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [NoMixLottable15] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [Floor] nvarchar(3) NULL DEFAULT (''),
+    [CycleCounter] int NULL DEFAULT ((0)),
+    [Descr] nvarchar(60) NULL DEFAULT (''),
+    [MaxCarton] int NOT NULL DEFAULT ((0)),
+    [MaxSKU] int NOT NULL DEFAULT ((0)),
+    [MaxQty] int NOT NULL DEFAULT ((0)),
+    [DisableCheckDigitAutoCompute] nvarchar(5) NULL DEFAULT ('False'),
+    [ColorCode] nvarchar(20) NULL DEFAULT (''),
+    CONSTRAINT [PKLOC] PRIMARY KEY ([Loc]),
+    CONSTRAINT [CK_LOC_Loc_01] CHECK (NOT [Loc]=' ')
+);
+GO
+
+CREATE INDEX [IDX_LOC_facility2] ON [dbo].[loc] ([Facility], [LocAisle]);
+GO
+CREATE INDEX [IDX_LOC_FacilityStatusLocation] ON [dbo].[loc] ([Facility], [Status], [LocationType], [LocationFlag], [LocationCategory], [LogicalLocation], [LocLevel], [LocationGroup], [PALogicalLoc]);
+GO
+CREATE INDEX [IDX_LOC_pickzone] ON [dbo].[loc] ([PickZone]);
+GO
+CREATE INDEX [IDX_LOC_PUTAWAYZONE] ON [dbo].[loc] ([PutawayZone]);
+GO
+CREATE INDEX [IX_LOC] ON [dbo].[loc] ([LocationFlag], [Status], [HOSTWHCODE]);
+GO

@@ -1,0 +1,31 @@
+CREATE TABLE [dbo].[sce_dl_custitran]
+(
+    [RowRefNo] bigint IDENTITY(1,1) NOT NULL,
+    [DataStream] nchar(10) NULL,
+    [File_key] int NULL,
+    [ExternPostingDate] datetime NULL,
+    [Storerkey] nvarchar(15) NULL,
+    [Facility] nvarchar(5) NULL,
+    [ExternType] nvarchar(10) NULL,
+    [ExternRefKey] nvarchar(30) NULL,
+    [ExternTranIDKey] nvarchar(15) NULL,
+    [HostWhCode] nvarchar(10) NULL,
+    [SKU] nvarchar(20) NULL,
+    [ALTSKU] nvarchar(20) NULL,
+    [Lottable01] nvarchar(18) NULL DEFAULT (' '),
+    [Lottable02] nvarchar(18) NULL DEFAULT (' '),
+    [Lottable03] nvarchar(18) NULL DEFAULT (' '),
+    [Lottable04] datetime NULL DEFAULT (' '),
+    [Lottable05] datetime NULL DEFAULT (' '),
+    [Qty] int NULL DEFAULT ((0)),
+    [UOM] nvarchar(10) NULL,
+    [UserDefine01] nvarchar(30) NULL,
+    [UserDefine02] nvarchar(30) NULL,
+    [UserDefine03] nvarchar(30) NULL,
+    [UserDefine04] nvarchar(30) NULL,
+    [UserDefine05] nvarchar(30) NULL,
+    [AddWho] nvarchar(128) NULL,
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    CONSTRAINT [PK_SCE_DL_CUSTITRAN] PRIMARY KEY ([RowRefNo])
+);
+GO

@@ -1,0 +1,13 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+--https://jiralfl.atlassian.net/browse/WMS-12777
+CREATE   VIEW [BI].[V_GUI]
+AS
+SELECT *
+FROM [GUI] WITH (NOLOCK)
+
+
+GO

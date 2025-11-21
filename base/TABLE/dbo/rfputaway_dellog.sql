@@ -1,0 +1,33 @@
+CREATE TABLE [dbo].[rfputaway_dellog]
+(
+    [StorerKey] nvarchar(15) NOT NULL,
+    [Sku] nvarchar(20) NOT NULL,
+    [Lot] nvarchar(10) NOT NULL,
+    [FromLoc] nvarchar(10) NOT NULL,
+    [SuggestedLoc] nvarchar(10) NOT NULL,
+    [Id] nvarchar(18) NULL,
+    [ptcid] nvarchar(18) NOT NULL,
+    [qty] int NOT NULL,
+    [AddDate] datetime NULL,
+    [AddWho] nvarchar(128) NULL,
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [CaseID] nvarchar(20) NOT NULL,
+    [FromID] nvarchar(18) NOT NULL,
+    [RowRef] int NOT NULL,
+    [DelDate] datetime NULL DEFAULT (getdate()),
+    [DelWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [TaskDetailKey] nvarchar(10) NOT NULL,
+    [Func] int NOT NULL,
+    [PABookingKey] int NOT NULL,
+    [QTYPrinted] int NOT NULL,
+    [EditDate] datetime NULL,
+    [EditWho] nvarchar(128) NULL,
+    [Receiptkey] nvarchar(10) NULL DEFAULT (''),
+    [ReceiptLineNumber] nvarchar(5) NULL DEFAULT (''),
+    [UDF01] nvarchar(60) NULL DEFAULT (''),
+    [UDF02] nvarchar(60) NULL DEFAULT (''),
+    [UDF03] nvarchar(60) NULL DEFAULT (''),
+    CONSTRAINT [PK_rfputaway_dellog] PRIMARY KEY ([RowRef])
+);
+GO

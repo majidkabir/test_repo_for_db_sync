@@ -1,0 +1,8 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+CREATE VIEW   BI.V_TaskManagerUserDetail AS 
+SELECT * FROM dbo.TaskManagerUserDetail WITH (NOLOCK)
+
+GO

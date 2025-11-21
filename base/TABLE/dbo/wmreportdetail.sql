@@ -1,0 +1,77 @@
+CREATE TABLE [dbo].[wmreportdetail]
+(
+    [RowID] bigint IDENTITY(1,1) NOT NULL,
+    [ReportID] nvarchar(10) NOT NULL DEFAULT (''),
+    [ReportLineNo] nvarchar(5) NOT NULL DEFAULT (''),
+    [ReportTitle] nvarchar(60) NOT NULL DEFAULT (''),
+    [Storerkey] nvarchar(15) NOT NULL DEFAULT (''),
+    [Facility] nvarchar(15) NOT NULL DEFAULT (''),
+    [UserName] nvarchar(128) NOT NULL DEFAULT (''),
+    [ComputerName] nvarchar(30) NOT NULL DEFAULT (''),
+    [PrintGroup] nvarchar(10) NOT NULL DEFAULT (''),
+    [PrintType] nvarchar(30) NOT NULL DEFAULT (''),
+    [ReportTemplate] nvarchar(4000) NOT NULL DEFAULT (''),
+    [PrePrintSP] nvarchar(50) NOT NULL DEFAULT (''),
+    [CriteriaMatching01] nvarchar(100) NOT NULL DEFAULT (''),
+    [CriteriaMatching02] nvarchar(100) NOT NULL DEFAULT (''),
+    [CriteriaMatching03] nvarchar(100) NOT NULL DEFAULT (''),
+    [CriteriaMatching04] nvarchar(100) NOT NULL DEFAULT (''),
+    [CriteriaMatching05] nvarchar(MAX) NULL DEFAULT (''),
+    [ReportLineDesc] nvarchar(60) NOT NULL DEFAULT (''),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [TrafficCop] nchar(1) NULL,
+    [ArchiveCop] nchar(1) NULL,
+    [ReportFormat] nvarchar(1) NOT NULL DEFAULT (''),
+    [ReportParmName1] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName2] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName3] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName4] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName5] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName6] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName7] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName8] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName9] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName10] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName11] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName12] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName13] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName14] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName15] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName16] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName17] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName18] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName19] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportParmName20] nvarchar(100) NOT NULL DEFAULT (''),
+    [ReportCatalog] nvarchar(100) NOT NULL DEFAULT (''),
+    [PreGenRptDataSP] nvarchar(1000) NOT NULL DEFAULT (''),
+    [PrintTemplateSP] nvarchar(4000) NOT NULL DEFAULT (''),
+    [PrintSettings] nvarchar(4000) NOT NULL DEFAULT (''),
+    [PostPrintSP] nvarchar(50) NULL,
+    [PaperSizeWxH] nvarchar(15) NOT NULL DEFAULT (''),
+    [DCropWidth] nvarchar(10) NOT NULL DEFAULT ('0'),
+    [DCropHeight] nvarchar(10) NOT NULL DEFAULT ('0'),
+    [IsLandScape] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [IsColor] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [IsDuplex] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [IsCollate] nvarchar(1) NOT NULL DEFAULT ('0'),
+    [IsPaperPrinter] nvarchar(1) NOT NULL DEFAULT (''),
+    [DefaultPrinterID] nvarchar(30) NOT NULL DEFAULT (''),
+    [PrintNextOnFail] int NOT NULL DEFAULT ((0)),
+    [FileFolder] nvarchar(200) NOT NULL DEFAULT (''),
+    [SQL_Select] nvarchar(MAX) NOT NULL DEFAULT (''),
+    [AutoPrint] nvarchar(1) NOT NULL DEFAULT ('N'),
+    CONSTRAINT [PK_WMREPORTDETAIL] PRIMARY KEY ([RowID])
+);
+GO
+
+CREATE INDEX [IDX_WMREPORTDETAIL_Facility] ON [dbo].[wmreportdetail] ([Facility]);
+GO
+CREATE INDEX [IDX_WMREPORTDETAIL_PrintGroup] ON [dbo].[wmreportdetail] ([ReportID], [PrintGroup]);
+GO
+CREATE INDEX [IDX_WMREPORTDETAIL_ReportLine] ON [dbo].[wmreportdetail] ([ReportID], [ReportLineNo]);
+GO
+CREATE INDEX [IDX_WMREPORTDETAIL_STORER] ON [dbo].[wmreportdetail] ([Storerkey], [Facility]);
+GO

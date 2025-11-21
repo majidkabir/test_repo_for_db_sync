@@ -1,0 +1,30 @@
+CREATE TABLE [rdt].[rdtlotorderlog]
+(
+    [RowRef] int IDENTITY(1,1) NOT NULL,
+    [Mobile] int NOT NULL,
+    [OrderKey] nvarchar(10) NOT NULL,
+    [StorerKey] nvarchar(15) NOT NULL,
+    [SKU] nvarchar(20) NOT NULL,
+    [QTY] int NOT NULL DEFAULT ((0)),
+    [Barcode] nvarchar(60) NOT NULL DEFAULT (''),
+    [Lottable01] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable02] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable03] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [Lottable06] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable07] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable08] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable09] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable10] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable11] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable12] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL,
+    [Remark] nvarchar(100) NOT NULL DEFAULT (''),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    CONSTRAINT [PK_rdtLotOrderLog] PRIMARY KEY ([RowRef])
+);
+GO

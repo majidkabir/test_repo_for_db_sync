@@ -1,0 +1,11 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+
+Create VIEW DBO.V_PackDetailInfo 
+AS 
+SELECT * FROM PackDetailInfo (NOLOCK)
+
+GO

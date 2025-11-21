@@ -1,0 +1,12 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+--https://jiralfl.atlassian.net/browse/WMS-13190
+CREATE   VIEW [BI].[V_PMTRN]
+AS
+SELECT *
+FROM dbo.PMTRN WITH (NOLOCK)
+
+GO

@@ -1,0 +1,11 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+--https://jiralfl.atlassian.net/browse/WMS-15455
+CREATE   VIEW [BI].[V_SKU_Log]
+AS
+SELECT * FROM SKU_Log WITH (NOLOCK)
+
+GO

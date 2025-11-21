@@ -1,0 +1,32 @@
+CREATE TABLE [rdt].[rdtreport]
+(
+    [StorerKey] nvarchar(15) NOT NULL,
+    [ReportType] nvarchar(10) NOT NULL,
+    [RptDesc] nvarchar(60) NULL,
+    [DataWindow] nvarchar(50) NULL,
+    [TargetDB] nvarchar(20) NULL,
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    [parm1_label] nvarchar(30) NULL,
+    [parm2_label] nvarchar(30) NULL,
+    [parm3_label] nvarchar(30) NULL,
+    [parm4_label] nvarchar(30) NULL,
+    [parm5_label] nvarchar(30) NULL,
+    [parm6_label] nvarchar(30) NULL,
+    [parm7_label] nvarchar(30) NULL,
+    [parm8_label] nvarchar(30) NULL,
+    [parm9_label] nvarchar(30) NULL,
+    [parm10_label] nvarchar(30) NULL,
+    [PrintTemplate] nvarchar(MAX) NULL DEFAULT (''),
+    [PrintTemplateSP] nvarchar(40) NULL DEFAULT (''),
+    [Function_ID] int NOT NULL DEFAULT ('0'),
+    [ProcessType] nvarchar(15) NOT NULL DEFAULT (''),
+    [ProcessSP] nvarchar(50) NOT NULL DEFAULT (''),
+    [PaperType] nvarchar(10) NOT NULL DEFAULT (''),
+    [NoOfCopy] int NOT NULL DEFAULT ((1)),
+    [Facility] nvarchar(5) NOT NULL DEFAULT (''),
+    CONSTRAINT [PK_RDTReport] PRIMARY KEY ([StorerKey], [ReportType], [Function_ID], [Facility])
+);
+GO

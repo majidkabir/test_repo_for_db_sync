@@ -1,0 +1,11 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+CREATE   VIEW [BI].[V_AllocShortageLog]
+AS
+SELECT *
+FROM dbo.AllocShortageLog WITH (NOLOCK)
+
+GO

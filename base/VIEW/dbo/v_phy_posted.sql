@@ -1,0 +1,14 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+CREATE VIEW [dbo].[V_PHY_POSTED] 
+AS 
+SELECT [StorerKey]
+, [Sku]
+, [QtyTeamA]
+, [QtyLOTxLOCxID]
+, [ErrorMessage]
+FROM [PHY_POSTED] (NOLOCK) 
+
+GO

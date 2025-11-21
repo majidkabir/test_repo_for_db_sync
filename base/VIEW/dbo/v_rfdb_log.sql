@@ -1,0 +1,12 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+CREATE VIEW [dbo].[V_RFDB_LOG] 
+AS 
+SELECT [adddate]
+, [user_id]
+, [message]
+FROM [RFDB_LOG] (NOLOCK) 
+
+GO

@@ -1,0 +1,30 @@
+CREATE TABLE [dbo].[tms_transportorder]
+(
+    [Rowref] int IDENTITY(1,1) NOT NULL,
+    [ProvShipmentID] nvarchar(50) NULL,
+    [OrderReleaseID] nvarchar(50) NOT NULL,
+    [OrderSourceID] nvarchar(150) NOT NULL,
+    [ClientReferenceID] nvarchar(150) NOT NULL,
+    [Loadkey] nvarchar(10) NULL,
+    [MBOLkey] nvarchar(10) NULL,
+    [ParentSourceID] nvarchar(50) NULL,
+    [SplitFlag] varchar(1) NULL,
+    [Principal] nvarchar(45) NOT NULL,
+    [Country] nvarchar(5) NOT NULL,
+    [FacilityID] nvarchar(50) NOT NULL,
+    [StopSeq] int NULL,
+    [IOIndicator] nvarchar(1) NULL,
+    [StopServiceTime] int NULL,
+    [OrderVolume] numeric(24, 6) NULL,
+    [OrderWeight] numeric(24, 6) NULL,
+    [OrderCartonCount] int NULL,
+    [OrderPalletCount] int NULL,
+    [PickPriority] nvarchar(10) NULL,
+    [ErrorCode] nvarchar(50) NULL,
+    [Addwho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [Editwho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    CONSTRAINT [PKTMS_TransportOrder] PRIMARY KEY ([Rowref])
+);
+GO

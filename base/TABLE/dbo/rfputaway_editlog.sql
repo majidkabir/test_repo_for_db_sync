@@ -1,0 +1,32 @@
+CREATE TABLE [dbo].[rfputaway_editlog]
+(
+    [EditLogKey] bigint IDENTITY(1,1) NOT NULL,
+    [StorerKey] nvarchar(15) NOT NULL,
+    [SKU] nvarchar(20) NOT NULL,
+    [LOT] nvarchar(10) NOT NULL,
+    [FromLOC] nvarchar(10) NOT NULL,
+    [SuggestedLOC] nvarchar(10) NOT NULL,
+    [ID] nvarchar(18) NULL,
+    [ptcid] nvarchar(18) NOT NULL,
+    [QTY] int NOT NULL,
+    [AddDate] datetime NULL,
+    [AddWho] nvarchar(128) NULL,
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [CaseID] nvarchar(20) NOT NULL,
+    [FromID] nvarchar(20) NOT NULL,
+    [RowRef] int NOT NULL,
+    [TaskDetailKey] nvarchar(10) NOT NULL,
+    [Func] int NOT NULL,
+    [PABookingKey] int NOT NULL,
+    [QTYPrinted] int NOT NULL,
+    [EditDate] datetime NULL,
+    [EditWho] nvarchar(128) NULL,
+    [Receiptkey] nvarchar(10) NULL,
+    [ReceiptLineNumber] nvarchar(5) NULL,
+    [UDF01] nvarchar(60) NULL,
+    [UDF02] nvarchar(60) NULL,
+    [UDF03] nvarchar(60) NULL,
+    CONSTRAINT [PK_RFPutaway_EDITLOG] PRIMARY KEY ([EditLogKey])
+);
+GO

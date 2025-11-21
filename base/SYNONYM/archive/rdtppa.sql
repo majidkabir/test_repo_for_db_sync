@@ -1,0 +1,2 @@
+CREATE SYNONYM [archive].[rdtppa] FOR [GBRARCHIVE].[RDT ].[RDTPPA];
+GO

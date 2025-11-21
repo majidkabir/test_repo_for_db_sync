@@ -1,0 +1,16 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+CREATE VIEW [dbo].[V_PHY_POST_DETAIL] 
+AS 
+SELECT [StorerKey]
+, [Sku]
+, [Loc]
+, [Lot]
+, [Id]
+, [QtyTeamA]
+, [QtyLOTxLOCxID]
+FROM [PHY_POST_DETAIL] (NOLOCK) 
+
+GO

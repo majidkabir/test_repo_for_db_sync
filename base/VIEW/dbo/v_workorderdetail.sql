@@ -1,0 +1,10 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+CREATE   VIEW [dbo].[V_WorkOrderDetail] 
+AS 
+SELECT * FROM WorkOrderDetail WITH (NOLOCK)
+
+GO

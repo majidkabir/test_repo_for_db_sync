@@ -1,0 +1,380 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+/********************************************************************************/                       
+/* Copyright: IDS                                                               */                       
+/* Purpose: isp_Bartender_Shipper_Label_JP_FJ                                   */        
+/*          copy from isp_Bartender_Shipper_Label_JP                            */                     
+/*                                                                              */                       
+/* Modifications log:                                                           */                       
+/*                                                                              */                       
+/* Date        Rev  Author     Purposes                                         */      
+/* 19-Nov-2021 1.1  Mingle     WMS-18403 Modify col13&14 logic(ML01)            */      
+/* 19-Nov-2021 1.1  Mingle     DevOps Combine Script                            */       
+/* 19-Nov-2021 1.1  Mingle     WMS-21258  Revise logic                          */
+/* 22-Nov-2022 1.2  Khor       Fixed label not print after carton closed but    */    
+/*                             before pack confirm (JSM-95226)                  */       
+/********************************************************************************/                                        
+CREATE    PROC [dbo].[isp_Bartender_Shipper_Label_JP_FJ]                            
+(  @c_Sparm01            NVARCHAR(250),                    
+   @c_Sparm02            NVARCHAR(250),                    
+   @c_Sparm03            NVARCHAR(250),                    
+   @c_Sparm04            NVARCHAR(250),                    
+   @c_Sparm05            NVARCHAR(250),                    
+   @c_Sparm06            NVARCHAR(250),                    
+   @c_Sparm07            NVARCHAR(250),                    
+   @c_Sparm08            NVARCHAR(250),                    
+   @c_Sparm09            NVARCHAR(250),                    
+   @c_Sparm10            NVARCHAR(250),              
+   @b_debug             INT = 0                               
+)                            
+AS                            
+BEGIN                            
+   SET NOCOUNT ON                       
+   SET ANSI_NULLS OFF                      
+   SET QUOTED_IDENTIFIER OFF                       
+   SET CONCAT_NULL_YIELDS_NULL OFF                                        
+                                    
+   DECLARE                        
+      @c_ReceiptKey      NVARCHAR(10),                          
+      @c_ExternOrderKey  NVARCHAR(10),                    
+      @c_Deliverydate    DATETIME,                    
+      @n_intFlag         INT,           
+      @n_CntRec          INT,          
+      @c_SQL             NVARCHAR(MAX),           
+      @c_SQLParm         NVARCHAR(MAX),         
+      @c_SQLSORT         NVARCHAR(MAX),             
+      @c_SQLJOIN         NVARCHAR(MAX),          
+      @c_GetSKU01        NVARCHAR(80),      
+      @c_GetSKUDESCR01   NVARCHAR(80),      
+      @c_GetQty01        NVARCHAR(10),      
+      @c_GetSKU02        NVARCHAR(80),      
+      @c_GetSKUDESCR02   NVARCHAR(80),      
+      @c_GetQty02        NVARCHAR(10),      
+      @c_GetSKU03        NVARCHAR(80),      
+      @c_GetSKUDESCR03   NVARCHAR(80),      
+      @c_GetQty03        NVARCHAR(10),      
+      @c_GetPickslipno   NVARCHAR(80),      
+      @c_GetCartonNo     NVARCHAR(10),      
+      @c_TTLCNT          NVARCHAR(10),      
+      @c_labelline       NVARCHAR(5),      
+      @c_Pickslipno      NVARCHAR(80),      
+      @c_CartonNo        NVARCHAR(10),      
+      @c_hazardousFlag   NVARCHAR(10),      
+      @n_TTLParcel       INT,      
+      @n_MAXParcel       INT,      
+      @c_GetField22      NVARCHAR(80),      
+      @c_HAZMAT          NVARCHAR(80),      
+      @c_Remarks         NVARCHAR(80),      
+      @c_VATAmt          INT,      
+      @c_orderkey        NVARCHAR(10)      
+       
+          
+  DECLARE @d_Trace_StartTime   DATETIME,         
+           @d_Trace_EndTime    DATETIME,        
+           @c_Trace_ModuleName NVARCHAR(20),         
+           @d_Trace_Step1      DATETIME,         
+           @c_Trace_Step1      NVARCHAR(20),        
+           @c_UserName         NVARCHAR(20)           
+       
+   SET @d_Trace_StartTime = GETDATE()        
+   SET @c_Trace_ModuleName = ''        
+              
+    -- SET RowNo = 0                   
+    SET @c_SQL = ''       
+    SET @c_GetPickslipno   = ''      
+    SET @c_GetCartonNo     = ''       
+    SET @c_GetField22 = ''        
+    SET @c_HAZMAT = ''      
+    SET @c_Remarks = ''      
+         
+                    
+    CREATE TABLE [#Result] (                   
+      [ID]    [INT] IDENTITY(1,1) NOT NULL,                                  
+      [Col01] [NVARCHAR] (80) NULL,                  
+      [Col02] [NVARCHAR] (80) NULL,                    
+      [Col03] [NVARCHAR] (80) NULL,                    
+      [Col04] [NVARCHAR] (80) NULL,                    
+      [Col05] [NVARCHAR] (80) NULL,                    
+      [Col06] [NVARCHAR] (80) NULL,                    
+      [Col07] [NVARCHAR] (80) NULL,                    
+      [Col08] [NVARCHAR] (80) NULL,                    
+      [Col09] [NVARCHAR] (80) NULL,                    
+      [Col10] [NVARCHAR] (80) NULL,                    
+      [Col11] [NVARCHAR] (80) NULL,                    
+      [Col12] [NVARCHAR] (80) NULL,                    
+      [Col13] [NVARCHAR] (80) NULL,                    
+      [Col14] [NVARCHAR] (80) NULL,                    
+      [Col15] [NVARCHAR] (80) NULL,                    
+      [Col16] [NVARCHAR] (80) NULL,                    
+      [Col17] [NVARCHAR] (80) NULL,                    
+      [Col18] [NVARCHAR] (80) NULL,                    
+      [Col19] [NVARCHAR] (80) NULL,                    
+      [Col20] [NVARCHAR] (80) NULL,                    
+      [Col21] [NVARCHAR] (80) NULL,                    
+      [Col22] [NVARCHAR] (80) NULL,                    
+      [Col23] [NVARCHAR] (80) NULL,                    
+      [Col24] [NVARCHAR] (80) NULL,                    
+      [Col25] [NVARCHAR] (80) NULL,                    
+      [Col26] [NVARCHAR] (80) NULL,                    
+      [Col27] [NVARCHAR] (80) NULL,                    
+      [Col28] [NVARCHAR] (80) NULL,                    
+      [Col29] [NVARCHAR] (80) NULL,                    
+      [Col30] [NVARCHAR] (80) NULL,                    
+      [Col31] [NVARCHAR] (80) NULL,                    
+      [Col32] [NVARCHAR] (80) NULL,                    
+      [Col33] [NVARCHAR] (80) NULL,                    
+      [Col34] [NVARCHAR] (80) NULL,                    
+      [Col35] [NVARCHAR] (80) NULL,                    
+      [Col36] [NVARCHAR] (80) NULL,                    
+      [Col37] [NVARCHAR] (80) NULL,                    
+      [Col38] [NVARCHAR] (80) NULL,                    
+      [Col39] [NVARCHAR] (80) NULL,                    
+      [Col40] [NVARCHAR] (80) NULL,                    
+      [Col41] [NVARCHAR] (80) NULL,                    
+      [Col42] [NVARCHAR] (80) NULL,                    
+      [Col43] [NVARCHAR] (80) NULL,                    
+      [Col44] [NVARCHAR] (80) NULL,                    
+      [Col45] [NVARCHAR] (80) NULL,                    
+      [Col46] [NVARCHAR] (80) NULL,                    
+      [Col47] [NVARCHAR] (80) NULL,                    
+      [Col48] [NVARCHAR] (80) NULL,                    
+      [Col49] [NVARCHAR] (80) NULL,                    
+      [Col50] [NVARCHAR] (80) NULL,                   
+      [Col51] [NVARCHAR] (80) NULL,                    
+      [Col52] [NVARCHAR] (80) NULL,                    
+      [Col53] [NVARCHAR] (80) NULL,                    
+      [Col54] [NVARCHAR] (80) NULL,                    
+      [Col55] [NVARCHAR] (80) NULL,                    
+      [Col56] [NVARCHAR] (80) NULL,                    
+      [Col57] [NVARCHAR] (80) NULL,                    
+      [Col58] [NVARCHAR] (80) NULL,                    
+      [Col59] [NVARCHAR] (80) NULL,                    
+      [Col60] [NVARCHAR] (80) NULL                   
+     )                  
+                    
+        IF @b_debug=1              
+         BEGIN              
+            PRINT 'start'                
+         END              
+   SET @c_SQLJOIN = + N' SELECT DISTINCT (N''〒'' + Substring(ORD.C_Zip,1,3) + ''-'' + Substring(ORD.C_Zip,4,4)),ORD.c_phone1,'       
+                    + '(ORD.C_State + Space(1) + ORD.C_City + Space(1) + ORD.C_Address1 ) AS Add1,'+ CHAR(13) +     --3           
+                    + ' ORD.C_company,'      
+                    + ' CASE WHEN ISNULL(ORD.UserDefine03,'''') = '''' THEN C3.Description '      
+                    + ' ELSE Substring(CONVERT(VARCHAR(8), UserDefine03),5, 2) + ''/'' + Substring(CONVERT(VARCHAR(8), UserDefine03),7, 2) END ,'  --5      
+                    + ' PARSENAME(CONVERT(Money, CASE WHEN IsNumeric(ORD.UserDefine05)=1 THEN CAST(ORD.UserDefine05  AS INT) ELSE 0 END, 1),2),'      
+                    + ' CASE WHEN ISNULL(CSC.Sortingcode1,'''') <> '''' THEN CONCAT(CSC.Sortingcode1 , '  --ML02      
+                    + ' (CSC.Sortingcode1 - (CONVERT(INT,CSC.Sortingcode1 / 7) * 7))) ELSE '''' END ,'      --7  --ML02      
+                    + ' CASE WHEN ISNULL(CSC.Sortingcode1,'''') <> '''' THEN (Substring(CSC.Sortingcode1,2,2) +''-'' + Substring(CSC.Sortingcode1,4,2) '  --ML02      
+                    + ' + ''-'' + Substring(CSC.Sortingcode1,6,2)) ELSE '''' END,'     --8   --ML02     
+                    + ' PACKDET.LabelNo,(Substring(PACKDET.LabelNo,1,4) + ''-'' + Substring(PACKDET.LabelNo,5,4)  +''-'' +  Substring(PACKDET.LabelNo,9,4)),'            --10      
+                    + ' CASE WHEN ISNULL(C4.Short,'''') <> '''' AND ORD.ExternOrderkey LIKE C4.Short THEN ISNULL(C4.UDF01,'''') '      
+                    + '      WHEN ISNULL(C5.Short,'''') <> '''' AND ORD.C_Company = C5.Short THEN ISNULL(C5.UDF01,'''') '         
+                    + ' ELSE STO.company END, '         
+                    + ' CASE WHEN ISNULL(C4.Short,'''') <> '''' AND ORD.ExternOrderkey LIKE C4.Short THEN ISNULL(C4.UDF03,'''') '        
+                    + '      WHEN ISNULL(C5.Short,'''') <> '''' AND ORD.C_Company = C5.Short THEN ISNULL(C5.UDF03,'''') '         
+                    + ' ELSE STO.Phone1 END, '      
+                    + ' CASE WHEN ISNULL(C6.UDF05,'''') = ''1'' THEN ISNULL(C6.Notes,'''') ELSE (STO.Address1 + STO.Address2) END,'          
+                    + ' CASE WHEN ISNULL(C6.UDF05,'''') = ''1'' THEN ISNULL(C6.UDF01,'''') ELSE STO.ZIP END,STO.B_Company, ' --ML01   --15         
+                    + CHAR(13) +            
+                    + ' STO.B_Phone1,STO.Susr2,STO.Susr3,STO.Susr5, '      
+                    + ' CASE WHEN ISNULL(C4.Short,'''') <> '''' AND ORD.ExternOrderkey LIKE C4.Short THEN ISNULL(C4.UDF02,'''') '               --20            
+                    + '      WHEN ISNULL(C5.Short,'''') <> '''' AND ORD.C_Company = C5.Short THEN ISNULL(C5.UDF02,'''') '         
+                    + ' ELSE STO.Notes1 END, '         
+                    + ' CASE WHEN ISNULL(C5.Short,'''') <> '''' AND ORD.C_Company = C5.Short THEN ISNULL(C5.UDF04,'''') ELSE STO.Notes2 END, '         
+                    + ' '''',C1.Description,C2.long,CONVERT(VARCHAR(10), getdate(),112),'      
+                    + N' Substring(CONVERT(VARCHAR(10),dateadd(day,30,getdate()),112),3,2)+ N''年'' + Substring(CONVERT(VARCHAR(10),dateadd(day,30,getdate()),112),5,2) '      
+                    + N' + N''月'' +  Substring(CONVERT(VARCHAR(10), dateadd(day, 30 , getdate()),112) , 7,2) + N''日迄'','      
+                    + ' '''',PACKH.Orderkey,PACKDET.Cartonno,ISNULL(STO.B_Phone2,''''),'  --30        
+                    + ' ISNULL(ORD.C_address2,''''),ORD.c_contact1,ORD.c_contact2,ISNULL(ORD.notes,''''),ISNULL(ORD.notes2,''''),'      
+                    +'  ISNULL(ORD.C_address1,''''),ISNULL(ORD.C_address3,''''),ISNULL(ORD.C_address4,''''),ISNULL(ORD.C_Phone2,''''),'''','   --40              
+                    + ' (ORD.C_State + Space(1) + ORD.C_City + Space(1) + ORD.C_Address2 ) AS Add2, '''','''','''','''','''','''','''','''','''', '  --50        
+                    + ' '''','''','''','''','''','''','''','''','''', '''' '   --60                
+                    + CHAR(13) +                  
+                    + ' FROM ORDERS ORD WITH (NOLOCK)'             
+                    + ' JOIN PACKHEADER PACKH WITH (NOLOCK) ON PACKH.OrderKey= ORD.OrderKey'        
+                    + ' JOIN PACKDETAIL PACKDET WITH (NOLOCK) ON PACKH.Pickslipno = PACKDET.Pickslipno'       
+                   -- + ' JOIN PICKDETAIL PICKDET WITH (NOLOCK) ON PICKDET.caseid = PACKDET.labelno'   
+                    + ' JOIN PICKDETAIL PICKDET WITH (NOLOCK) ON PICKDET.SKU = PACKDET.SKU AND PICKDET.OrderKey = ORD.OrderKey' --JSM-95226          
+                    + ' LEFT JOIN CARTONTRACK CT WITH (NOLOCK) ON CT.Trackingno = PACKDET.labelno  '       
+                    + ' JOIN STORER STO WITH (NOLOCK) ON ORD.Storerkey=STO.Storerkey'      
+                    + ' LEFT JOIN PACKINFO PI WITH (NOLOCK) ON PI.Pickslipno = PACKDET.Pickslipno and PI.cartonno =  PACKDET.CartonNo'    
+                    + ' LEFT JOIN COURIERSORTINGCODE CSC WITH (NOLOCK) ON CSC.Zip = ORD.C_Zip AND CSC.Shipperkey = ''YTC'' '  --ML02     
+                    + ' LEFT JOIN CODELKUP C1 WITH (NOLOCK) ON C1.Listname = ''Timeslot'' AND C1.Short = ORD.UserDefine10'      
+                    + ' LEFT JOIN CODELKUP C2 WITH (NOLOCK) ON C2.Listname = ''HMCARTON'' AND C2.UDF01 = CT.CarrierName AND C2.short=PI.Cartontype AND C2.Storerkey = ORD.Storerkey'  --INC1404857      
+                    + ' LEFT JOIN CODELKUP C3 WITH (NOLOCK) ON C3.Listname = ''Timeslot'' AND C3.Code = ''BLANK'''      
+                    + ' LEFT JOIN CODELKUP C4 WITH (NOLOCK) ON C4.Listname = ''FJSHPLABEL'' AND C4.Storerkey = ORD.Storerkey AND ISNULL(C4.Short,'''') = ''NBA%'' '         
+                    + ' LEFT JOIN CODELKUP C5 WITH (NOLOCK) ON C5.Listname = ''FJSHPLABEL'' AND C5.Storerkey = ORD.Storerkey AND ISNULL(C5.Short,'''') = ORD.C_Company '      
+                    + ' LEFT JOIN CODELKUP C6 WITH (NOLOCK) ON C6.Listname = ''FJSTRKEY'' AND C6.Storerkey = ORD.Storerkey AND C6.CODE = ORD.C_Company '  --ML01             
+   SET @c_SQLJOIN = @c_SQLJOIN + ' WHERE PACKH.Orderkey = @c_Sparm01 '         
+                    + ' AND PACKDET.Cartonno = CASE WHEN ISNULL(RTRIM( @c_Sparm02 ),'''')<> '''' THEN @c_Sparm02 ELSE PACKDET.Cartonno END'        
+                    + ' AND ORD.sostatus <> ''PENDGET'' '      
+                             
+   IF @b_debug=1              
+   BEGIN              
+      PRINT @c_SQLJOIN                
+   END                      
+                    
+   SET @c_SQL='INSERT INTO #Result (Col01,Col02,Col03,Col04,Col05, Col06,Col07,Col08,Col09'  + CHAR(13) +                 
+             +',Col10,Col11,Col12,Col13,Col14,Col15,Col16,Col17,Col18,Col19,Col20,Col21,Col22'  + CHAR(13) +                 
+             +',Col23,Col24,Col25,Col26,Col27,Col28,Col29,Col30,Col31,Col32,Col33,Col34' + CHAR(13) +                 
+             +',Col35,Col36,Col37,Col38,Col39,Col40,Col41,Col42,Col43,Col44'  + CHAR(13) +                 
+             +',Col45,Col46,Col47,Col48,Col49,Col50,Col51,Col52,Col53,Col54'+ CHAR(13) +                 
+             +',Col55,Col56,Col57,Col58,Col59,Col60) '         
+                          
+   SET @c_SQL = @c_SQL + @c_SQLJOIN        
+      
+   SET @c_SQLParm =  N'@c_Sparm01 NVARCHAR(250), @c_Sparm02 NVARCHAR(250), @c_Sparm03 NVARCHAR(250), @c_Sparm04  NVARCHAR(250), ' +      
+                      ' @c_Sparm05 NVARCHAR(250), @c_Sparm06 NVARCHAR(250), @c_Sparm07 NVARCHAR(250),  @c_Sparm08 NVARCHAR(250), ' +      
+                      ' @c_Sparm09 NVARCHAR(250), @c_Sparm10  NVARCHAR(250) '      
+                                      
+              
+   EXEC sp_executesql @c_SQL, @c_SQLParm, @c_Sparm01, @c_Sparm02 , @c_Sparm03, @c_Sparm04, @c_Sparm05, @c_Sparm06, @c_Sparm07,      
+                     @c_Sparm08, @c_Sparm09, @c_Sparm10      
+           
+                 
+   IF @b_debug=1              
+   BEGIN                
+       PRINT @c_SQL                
+   END        
+      
+   DECLARE CUR_RESULT CURSOR LOCAL FAST_FORWARD READ_ONLY FOR        
+   SELECT DISTINCT Col28,Col29        
+   FROM   #Result         
+   --WHERE  Col28=@c_Sparm01       
+      
+   OPEN CUR_RESULT         
+   FETCH NEXT FROM CUR_RESULT INTO @c_orderkey,@c_CartonNo          
+           
+   WHILE @@FETCH_STATUS <> -1        
+   BEGIN      
+      SET @n_TTLParcel = 1      
+      SET @c_hazardousFlag = ''      
+      SET @c_HAZMAT = ''      
+      SET @n_MAXParcel = 1      
+      SET @c_VATAmt = 0      
+            
+      SELECT @n_MAXParcel = MAX(cartonNo)      
+      FROM PACKDETAIL PADET WITH (NOLOCK)       
+      JOIN PACKHEADER PAH WITH (NOLOCK) ON PAH.Pickslipno = PADET.Pickslipno      
+      WHERE PAH.Orderkey = @c_orderkey      
+      
+      IF EXISTS (SELECT 1 FROM SKU S WITH (NOLOCK)      
+                 JOIN PACKDETAIL PADET WITH (NOLOCK) ON PADET.SKU = S.SKU      
+                 JOIN PACKHEADER PAH WITH (NOLOCK) ON PAH.Pickslipno = PADET.Pickslipno      
+                 WHERE PAH.Orderkey = @c_orderkey AND S.hazardousFlag = '1')      
+      BEGIN      
+         SET @c_hazardousFlag = '1'      
+      END      
+      ELSE      
+      BEGIN      
+         SET @c_hazardousFlag = '0'      
+      END      
+            
+      IF @c_hazardousFlag = '1'      
+      BEGIN      
+         SELECT @c_HAZMAT = STO.Susr1      
+         FROM STORER STO WITH (NOLOCK)      
+         JOIN PACKDETAIL PADET WITH (NOLOCK) ON PADET.Storerkey = STO.Storerkey      
+         JOIN PACKHEADER PAH WITH (NOLOCK) ON PAH.Pickslipno = PADET.Pickslipno      
+         WHERE PAH.Orderkey = @c_orderkey      
+         AND PADET.CartonNo = @c_CartonNo       
+      END      
+            
+            
+      IF @n_MAXParcel > 1      
+BEGIN      
+         SELECT @c_Remarks = STO.susr4      
+         FROM STORER STO WITH (NOLOCK)      
+         JOIN PACKDETAIL PADET WITH (NOLOCK) ON PADET.Storerkey = STO.Storerkey      
+         JOIN PACKHEADER PAH WITH (NOLOCK) ON PAH.Pickslipno = PADET.Pickslipno      
+         WHERE PAH.Orderkey = @c_orderkey      
+         AND PADET.CartonNo = @c_CartonNo       
+      END      
+      ELSE      
+      BEGIN      
+         --SELECT @c_VATAmt = CONVERT(INT,ROUND((ORD.UserDefine05/(1+STO.percenta)) * NULLIF(STO.percenta,0),0))                             
+         SELECT @c_VATAmt = CASE WHEN ISNUMERIC(STO.PercentA) = 1 AND ISNUMERIC(ORD.UserDefine05) = 1                     
+                            THEN CONVERT(INT,( ORD.UserDefine05 / ((STO.PercentA / 100) + 1) ) )                          
+                            ELSE 0 END                                                                                                                                                            
+         FROM STORER STO WITH (NOLOCK)      
+         JOIN PACKDETAIL PADET WITH (NOLOCK) ON PADET.Storerkey = STO.Storerkey       
+         JOIN PACKHEADER PAH WITH (NOLOCK) ON PAH.Pickslipno = PADET.Pickslipno      
+         JOIN ORDERS ORD WITH (NOLOCK) ON ORD.Orderkey = PAH.Orderkey      
+         WHERE PAH.Orderkey = @c_orderkey      
+         AND PADET.CartonNo = @c_CartonNo       
+      END      
+         
+      IF @c_hazardousFlag = '1'      
+      BEGIN      
+          SET @c_GetField22 = @c_HAZMAT      
+      END      
+            
+      IF @b_debug=1              
+      BEGIN              
+         SELECT @c_GetField22 as field22,@c_CartonNo as cartonno,@c_HAZMAT as hazmat       
+                    
+      END       
+            
+      IF @n_MAXParcel > '1'      
+      BEGIN      
+         IF @c_hazardousFlag = '1'      
+         BEGIN      
+            SET @c_GetField22 = @c_CartonNo + '/' + convert(nvarchar(3),@n_MAXParcel) + space(4) + @c_Remarks + space(4) + @c_HAZMAT      
+         END      
+         ELSE      
+         BEGIN      
+            SET @c_GetField22 = @c_CartonNo + '/' + convert(nvarchar(3),@n_MAXParcel) + space(4) + @c_Remarks      
+         END      
+      END      
+            
+      UPDATE #Result      
+      SET  col22 =  @c_GetField22,      
+           col27 =  @c_VATAmt       
+      WHERE Col28 = @c_orderkey      
+      AND   Col29 = @c_CartonNo      
+      
+   FETCH NEXT FROM CUR_RESULT INTO @c_orderkey,@c_CartonNo         
+   END      
+          
+   CLOSE CUR_RESULT      
+   DEALLOCATE  CUR_RESULT      
+      
+   IF @b_debug=1              
+   BEGIN              
+      SELECT * FROM #Result (nolock)              
+   END              
+            
+   SELECT * FROM #Result (nolock)      
+   Order by Col28,Col29              
+      
+EXIT_SP:          
+        
+   SET @d_Trace_EndTime = GETDATE()        
+   SET @c_UserName = SUSER_SNAME()        
+         
+   EXEC isp_InsertTraceInfo         
+      @c_TraceCode = 'BARTENDER',        
+      @c_TraceName = 'isp_Bartender_Shipper_Label_JP_FJ',        
+      @c_starttime = @d_Trace_StartTime,        
+      @c_endtime = @d_Trace_EndTime,        
+      @c_step1 = @c_UserName,        
+      @c_step2 = '',        
+      @c_step3 = '',        
+      @c_step4 = '',        
+      @c_step5 = '',        
+      @c_col1 = @c_Sparm01,         
+      @c_col2 = @c_Sparm02,        
+      @c_col3 = @c_Sparm03,        
+      @c_col4 = @c_Sparm04,        
+      @c_col5 = @c_Sparm05,        
+      @b_Success = 1,        
+      @n_Err = 0,        
+      @c_ErrMsg = ''                    
+         
+        
+                                        
+   END -- procedure       
+
+GO

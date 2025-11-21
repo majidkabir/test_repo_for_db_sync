@@ -1,0 +1,9 @@
+CREATE SEQUENCE [dbo].[adecomtotelabel]
+    AS bigint
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    MAXVALUE 10000000000
+    CYCLE
+    CACHE 20;
+GO

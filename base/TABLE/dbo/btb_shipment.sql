@@ -1,0 +1,30 @@
+CREATE TABLE [dbo].[btb_shipment]
+(
+    [BTB_ShipmentKey] nvarchar(10) NOT NULL,
+    [ShipmentDate] datetime NOT NULL,
+    [ShipToCountry] nvarchar(20) NOT NULL DEFAULT (''),
+    [Vessel] nvarchar(20) NOT NULL DEFAULT (''),
+    [BLNo] nvarchar(20) NOT NULL DEFAULT (''),
+    [Storerkey] nvarchar(15) NOT NULL DEFAULT (''),
+    [FormType] nvarchar(10) NOT NULL DEFAULT (''),
+    [PermitNo] nvarchar(20) NOT NULL DEFAULT (''),
+    [UserDefine01] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine02] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine03] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine04] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine05] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine06] datetime NULL,
+    [UserDefine07] datetime NULL,
+    [UserDefine08] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine09] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine10] nvarchar(30) NOT NULL DEFAULT (''),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [TrafficCop] nchar(1) NULL,
+    [ArchiveCop] nchar(1) NULL,
+    [Status] nvarchar(10) NOT NULL DEFAULT ('0'),
+    CONSTRAINT [PK_btb_shipment] PRIMARY KEY ([BTB_ShipmentKey])
+);
+GO

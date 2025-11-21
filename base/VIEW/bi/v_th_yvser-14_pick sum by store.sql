@@ -1,0 +1,37 @@
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE   view [BI].[V_TH_YVSER-14_Pick Sum by STORE] as 
+select xx.PostingDate, xx.TransferOrderNo, xx.DestinationNo,
+	   xx.DestinationName, sum(xx.RequestSKUs) as RequestSKUs, sum(xx.RequestQty) as 'RequestQty',
+	   sum(xx.ShippedSKUs) as ShippedSKUs, sum(xx.ShippedQty) as 'ShippedQty',
+	   (sum(xx.RequestSKUs)-sum(xx.ShippedSKUs)) as 'VarianceSKUs',
+	   (sum(xx.RequestQty)-sum(xx.ShippedQty)) as 'VarianceQty',
+	   (sum(xx.ShippedQty)*100)/sum(xx.RequestQty) as 'PctFulfillment'
+from (
+	select x.ShippedDate as PostingDate, x.DocumentNo as TransferOrderNo, x.TransferToCode as DestinationNo,
+	   x.TransferToName as DestinationName, count(distinct x.ItemNo) as RequestSKUs, sum(x.RequestQty) as RequestQty,
+	   count(distinct x.ItemNo) as ShippedSKUs, sum(x.QuantityShipped) as ShippedQty
+	from (
+		select convert(varchar, h.DeliveryDate, 103) as DeviDate, convert(varchar, h.OrderDate, 103) as RequestDate, 
+			convert(varchar, h.EditDate, 103) as ShippedDate, h.ExternOrderKey as DocumentNo, h.OrderKey as RefLFDocumentNo, 
+			d.SKU as ItemNo, sku.Descr as ItemName, sku.susr3 as DivisionCode, d.OriginalQty as RequestQty,
+			d.ShippedQty as QuantityShipped, d.OriginalQty-d.ShippedQty as Variance, (d.ShippedQty*100)/d.OriginalQty as PctPerformance,
+			h.ConsigneeKey as TransferToCode, h.C_Company as TransferToName
+		from Orders h with (nolock)
+		JOIN OrderDetail d with (nolock) ON h.StorerKey = d.StorerKey 
+			and h.OrderKey = d.OrderKey 
+			and h.ExternOrderKey = d.ExternOrderKey
+		JOIN SKU sku with (nolock) ON d.StorerKey = sku.StorerKey 
+			and d.sku = sku.sku
+		where h.StorerKey = 'YVESR'
+		and h.Status = '9' and h.SOStatus = '9' and d.Status = '9'
+		and convert(varchar, h.EditDate, 103) = convert(varchar, GetDate()-1, 103)
+		and h.BillToKey = 'LFWH'
+	) x group by x.ShippedDate, x.DocumentNo, x.TransferToCode,x.TransferToName
+) xx group by xx.PostingDate, xx.TransferOrderNo, xx.DestinationNo, xx.DestinationName
+
+
+GO

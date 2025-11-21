@@ -1,0 +1,30 @@
+CREATE TABLE [ptl].[lightstatus]
+(
+    [IPAddress] nvarchar(40) NOT NULL DEFAULT (''),
+    [DevicePosition] nvarchar(10) NOT NULL DEFAULT (''),
+    [DeviceID] nvarchar(20) NOT NULL DEFAULT (''),
+    [Func] int NOT NULL DEFAULT ((0)),
+    [Step] int NOT NULL DEFAULT ((0)),
+    [Status] nvarchar(2) NOT NULL DEFAULT ('0'),
+    [PTLKey] bigint NULL,
+    [PTLType] nvarchar(20) NOT NULL,
+    [StorerKey] nvarchar(15) NULL,
+    [UserName] nvarchar(128) NOT NULL DEFAULT (''),
+    [DisplayValue] nvarchar(30) NULL,
+    [ReceiveValue] nvarchar(30) NULL,
+    [LightCmd] nvarchar(MAX) NULL,
+    [ReceiveTime] datetime NULL,
+    [Remarks] nvarchar(500) NULL DEFAULT (''),
+    [ErrorMessage] nvarchar(500) NULL DEFAULT (''),
+    [SourceKey] nvarchar(20) NULL DEFAULT (''),
+    [DeviceProfileLogKey] nvarchar(10) NULL,
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [TrafficCop] nchar(1) NULL,
+    [ArchiveCop] nchar(1) NULL,
+    [Facility] nvarchar(5) NOT NULL DEFAULT (''),
+    CONSTRAINT [PK_PTLLightLog] PRIMARY KEY ([IPAddress], [DevicePosition], [Facility])
+);
+GO

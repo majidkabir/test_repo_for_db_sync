@@ -1,0 +1,30 @@
+CREATE TABLE [dbo].[xdockstrategy]
+(
+    [XDockStrategyKey] nvarchar(10) NOT NULL DEFAULT (' '),
+    [Descr] nvarchar(60) NOT NULL DEFAULT (' '),
+    [TYPE] nvarchar(10) NOT NULL DEFAULT (' '),
+    [OVERALLOC] nvarchar(1) NOT NULL DEFAULT ('N'),
+    [USERDEFINE01] nvarchar(30) NULL DEFAULT (' '),
+    [SORT01] nvarchar(4) NULL DEFAULT (' '),
+    [USERDEFINE02] nvarchar(30) NULL DEFAULT (' '),
+    [SORT02] nvarchar(4) NULL DEFAULT (' '),
+    [USERDEFINE03] nvarchar(30) NULL DEFAULT (' '),
+    [SORT03] nvarchar(4) NULL DEFAULT (' '),
+    [USERDEFINE04] nvarchar(30) NULL DEFAULT (' '),
+    [SORT04] nvarchar(4) NULL DEFAULT (' '),
+    [USERDEFINE05] nvarchar(30) NULL DEFAULT (' '),
+    [SORT05] nvarchar(4) NULL DEFAULT (' '),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [UOM1] nvarchar(1) NULL DEFAULT ('N'),
+    [UOM2] nvarchar(1) NULL DEFAULT ('N'),
+    [UOM3] nvarchar(1) NULL DEFAULT ('N'),
+    [UOM4] nvarchar(1) NULL DEFAULT ('Y'),
+    [msrepl_tran_version] uniqueidentifier NOT NULL DEFAULT (newid()),
+    CONSTRAINT [PKXDOCKStrategy] PRIMARY KEY ([XDockStrategyKey])
+);
+GO

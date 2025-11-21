@@ -1,0 +1,12 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+CREATE VIEW [RDT].[V_rdtFPKLog]      
+AS      
+SELECT *    
+FROM [RDT].[rdtFPKLog]  (NOLOCK)  
+  
+
+GO

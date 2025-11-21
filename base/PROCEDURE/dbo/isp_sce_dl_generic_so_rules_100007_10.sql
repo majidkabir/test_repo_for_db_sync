@@ -1,0 +1,287 @@
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+/************************************************************************/
+/* Store Procedure:  isp_SCE_DL_GENERIC_SO_RULES_100007_10              */
+/* Creation Date: 28-Dec-2021                                           */
+/* Copyright: LFL                                                       */
+/* Written by: GHChan                                                   */
+/*                                                                      */
+/* Purpose:  Perform BilltoKey checking                                 */
+/*                                                                      */
+/*                                                                      */
+/* Usage:  @c_InParm1 = '1' Get BilltoKey from storer table             */
+/*         @c_InParm2 = 'abc' BilltoKey will add prefix                 */
+/*         if this param contains value upon import orders              */
+/*         @c_InParm3 = 'ENG' LanguageCode                              */
+/*                                                                      */
+/*                                                                      */
+/* Called By: - SCE DL Main Stored Procedures e.g. (isp_SCE_DL_Generic) */
+/*                                                                      */
+/* Version: 1.0                                                         */
+/*                                                                      */
+/* Data Modifications:                                                  */
+/*                                                                      */
+/* Updates:                                                             */
+/* Date         Author    Ver.  Purposes                                */
+/* 28-Dec-2021  GHChan    1.1   Initial                                 */
+/************************************************************************/
+
+CREATE PROCEDURE [dbo].[isp_SCE_DL_GENERIC_SO_RULES_100007_10] (
+   @b_Debug       INT            = 0
+ , @n_BatchNo     INT            = 0
+ , @n_Flag        INT            = 0
+ , @c_SubRuleJson NVARCHAR(MAX)
+ , @c_STGTBL      NVARCHAR(250)  = ''
+ , @c_POSTTBL     NVARCHAR(250)  = ''
+ , @c_UniqKeyCol  NVARCHAR(1000) = ''
+ , @c_Username    NVARCHAR(128)  = ''
+ , @b_Success     INT            = 0 OUTPUT
+ , @n_ErrNo       INT            = 0 OUTPUT
+ , @c_ErrMsg      NVARCHAR(250)  = '' OUTPUT
+)
+AS
+BEGIN
+   SET NOCOUNT ON;
+   SET ANSI_NULLS OFF;
+   SET QUOTED_IDENTIFIER OFF;
+   SET CONCAT_NULL_YIELDS_NULL OFF;
+   SET ANSI_WARNINGS OFF;
+
+   DECLARE @c_ExecStatements NVARCHAR(4000)
+         , @c_ExecArguments  NVARCHAR(4000)
+         , @n_Continue       INT
+         , @n_StartTCnt      INT;
+
+   DECLARE @c_InParm1 NVARCHAR(60)
+         , @c_InParm2 NVARCHAR(60)
+         , @c_InParm3 NVARCHAR(60)
+         , @c_InParm4 NVARCHAR(60)
+         , @c_InParm5 NVARCHAR(60);
+   --, @c_InParm6            NVARCHAR(60)    
+   --, @c_InParm7            NVARCHAR(60)    
+   --, @c_InParm8            NVARCHAR(60)    
+   --, @c_InParm9            NVARCHAR(60)    
+   --, @c_InParm10           NVARCHAR(60)    
+
+   DECLARE @c_BillToKey NVARCHAR(15)
+         --, @c_ConcatBillToKey NVARCHAR(15)
+         , @c_ttlMsg    NVARCHAR(250);
+
+   SELECT @c_InParm1 = InParm1
+        , @c_InParm2 = InParm2
+        , @c_InParm3 = InParm3
+        , @c_InParm4 = InParm4
+        , @c_InParm5 = InParm5
+   FROM
+      OPENJSON(@c_SubRuleJson)
+      WITH (
+      SPName NVARCHAR(300) '$.SubRuleSP'
+    , InParm1 NVARCHAR(60) '$.InParm1'
+    , InParm2 NVARCHAR(60) '$.InParm2'
+    , InParm3 NVARCHAR(60) '$.InParm3'
+    , InParm4 NVARCHAR(60) '$.InParm4'
+    , InParm5 NVARCHAR(60) '$.InParm5'
+      )
+   WHERE SPName = OBJECT_NAME(@@PROCID);
+
+   IF EXISTS (
+   SELECT 1
+   FROM dbo.SCE_DL_SO_STG WITH (NOLOCK)
+   WHERE STG_BatchNo                 = @n_BatchNo
+   AND   STG_Status                    = '1'
+   AND   (
+          BillToKey IS NULL
+       OR ISNULL(RTRIM(BillToKey), '') = ''
+   )
+   )
+   BEGIN
+      BEGIN TRANSACTION;
+
+      UPDATE dbo.SCE_DL_SO_STG WITH (ROWLOCK)
+      SET STG_Status = '3'
+        , STG_ErrMsg = LTRIM(RTRIM(ISNULL(STG_ErrMsg, ''))) + '/BillToKey is null'
+      WHERE STG_BatchNo                 = @n_BatchNo
+      AND   STG_Status                    = '1'
+      AND   (
+             BillToKey IS NULL
+          OR ISNULL(RTRIM(BillToKey), '') = ''
+      );
+
+
+      IF @@ERROR <> 0
+      BEGIN
+         SET @n_Continue = 3;
+         SET @n_ErrNo = 68001;
+         SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                         + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100007_10)';
+         ROLLBACK;
+         GOTO STEP_999_EXIT_SP;
+      END;
+
+      COMMIT;
+   END;
+
+   IF ISNULL(RTRIM(@c_InParm2),'') <> ''
+   BEGIN
+      BEGIN TRANSACTION;
+
+      UPDATE dbo.SCE_DL_SO_STG WITH (ROWLOCK)
+      SET BillToKey = @c_InParm2 + BillToKey
+      WHERE STG_BatchNo = @n_BatchNo
+      AND   STG_Status    = '1';
+
+      IF @@ERROR <> 0
+      BEGIN
+         SET @n_Continue = 3;
+         SET @n_ErrNo = 68001;
+         SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                         + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100007_10)';
+         ROLLBACK;
+         GOTO STEP_999_EXIT_SP;
+      END;
+
+      COMMIT;
+   END;
+
+   --IF @c_InParm1 = '1'
+   --BEGIN
+      DECLARE C_CHK CURSOR LOCAL FAST_FORWARD READ_ONLY FOR
+      SELECT ISNULL(RTRIM(BillToKey), '')
+      FROM dbo.SCE_DL_SO_STG WITH (NOLOCK)
+      WHERE STG_BatchNo = @n_BatchNo
+      AND   STG_Status    = '1'
+      --AND   StorerKey IS NOT NULL
+      --AND   RTRIM(StorerKey) <> ''
+      GROUP BY ISNULL(RTRIM(BillToKey), '');
+
+      OPEN C_CHK;
+      FETCH NEXT FROM C_CHK
+      INTO @c_BillToKey;
+
+      WHILE @@FETCH_STATUS = 0
+      BEGIN
+         SET @c_ttlMsg = N'';
+
+         IF NOT EXISTS (
+         SELECT 1
+         FROM dbo.V_STORER WITH (NOLOCK)
+         WHERE StorerKey = @c_BillToKey
+         )
+         BEGIN
+            SET @c_ttlMsg = N'/BillToKey not exists in storer table';
+         END;
+         ELSE
+         BEGIN
+            BEGIN TRANSACTION;
+
+            UPDATE SCE_DL_SO_STG WITH (ROWLOCK)
+            SET SCE_DL_SO_STG.C_Contact1 = CASE WHEN @c_InParm3 = 'ENG' THEN S.Contact1
+                                                ELSE master.dbo.fn_ANSI2UNICODE(S.Contact1, @c_InParm3)
+                                           END
+              , SCE_DL_SO_STG.C_Contact2 = CASE WHEN @c_InParm3 = 'ENG' THEN S.Contact2
+                                                ELSE master.dbo.fn_ANSI2UNICODE(S.Contact2, @c_InParm3)
+                                           END
+              , SCE_DL_SO_STG.C_Company = CASE WHEN @c_InParm3 = 'ENG' THEN S.Company
+                                               ELSE master.dbo.fn_ANSI2UNICODE(S.Company, @c_InParm3)
+                                          END
+              , SCE_DL_SO_STG.C_Address1 = CASE WHEN @c_InParm3 = 'ENG' THEN S.Address1
+                                                ELSE master.dbo.fn_ANSI2UNICODE(S.Address1, @c_InParm3)
+                                           END
+              , SCE_DL_SO_STG.C_Address2 = CASE WHEN @c_InParm3 = 'ENG' THEN S.Address2
+                                                ELSE master.dbo.fn_ANSI2UNICODE(S.Address2, @c_InParm3)
+                                           END
+              , SCE_DL_SO_STG.C_Address3 = CASE WHEN @c_InParm3 = 'ENG' THEN S.Address3
+                                                ELSE master.dbo.fn_ANSI2UNICODE(S.Address3, @c_InParm3)
+                                           END
+              , SCE_DL_SO_STG.C_Address4 = CASE WHEN @c_InParm3 = 'ENG' THEN S.Address4
+                                                ELSE master.dbo.fn_ANSI2UNICODE(S.Address4, @c_InParm3)
+                                           END
+              , SCE_DL_SO_STG.C_City = CASE WHEN @c_InParm3 = 'ENG' THEN S.City
+                                            ELSE master.dbo.fn_ANSI2UNICODE(S.City, @c_InParm3)
+                                       END
+              , SCE_DL_SO_STG.C_State = CASE WHEN @c_InParm3 = 'ENG' THEN S.State
+                                             ELSE master.dbo.fn_ANSI2UNICODE(S.State, @c_InParm3)
+                                        END
+              , SCE_DL_SO_STG.C_Country = CASE WHEN @c_InParm3 = 'ENG' THEN S.Country
+                                               ELSE master.dbo.fn_ANSI2UNICODE(S.Country, @c_InParm3)
+                                          END
+              , SCE_DL_SO_STG.C_Zip = S.Zip
+              , SCE_DL_SO_STG.C_ISOCntryCode = S.ISOCntryCode
+              , SCE_DL_SO_STG.C_Phone1 = S.Phone1
+              , SCE_DL_SO_STG.C_Phone2 = S.Phone2
+              , SCE_DL_SO_STG.C_Fax1 = S.Fax1
+              , SCE_DL_SO_STG.C_Fax2 = S.Fax2
+              , SCE_DL_SO_STG.C_vat = S.VAT
+            FROM dbo.V_STORER S WITH (NOLOCK)
+            WHERE SCE_DL_SO_STG.STG_BatchNo = @n_BatchNo
+            AND   SCE_DL_SO_STG.STG_Status    = '1'
+            AND   SCE_DL_SO_STG.BillToKey     = @c_BillToKey
+            AND   S.StorerKey                 = @c_BillToKey;
+
+            IF @@ERROR <> 0
+            BEGIN
+               SET @n_Continue = 3;
+               SET @n_ErrNo = 68001;
+               SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                               + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100006_10)';
+               ROLLBACK;
+               GOTO STEP_999_EXIT_SP;
+            END;
+
+            COMMIT;
+         END;
+
+         IF @c_ttlMsg <> ''
+         BEGIN
+            BEGIN TRANSACTION;
+
+            UPDATE dbo.SCE_DL_SO_STG WITH (ROWLOCK)
+            SET STG_Status = '3'
+              , STG_ErrMsg = LTRIM(RTRIM(ISNULL(STG_ErrMsg, ''))) + @c_ttlMsg
+            WHERE STG_BatchNo = @n_BatchNo
+            AND   STG_Status    = '1'
+            AND   Consigneekey  = @c_BillToKey;
+
+            IF @@ERROR <> 0
+            BEGIN
+               SET @n_Continue = 3;
+               SET @n_ErrNo = 68001;
+               SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                               + ': Update record fail. (isp_SCE_DL_GENERIC_SO_RULES_100007_10)';
+               ROLLBACK;
+               GOTO STEP_999_EXIT_SP;
+            END;
+
+            COMMIT;
+         END;
+
+         FETCH NEXT FROM C_CHK
+         INTO @c_BillToKey;
+      END;
+
+      CLOSE C_CHK;
+      DEALLOCATE C_CHK;
+   --END;
+
+
+   QUIT:
+
+   STEP_999_EXIT_SP:
+   IF @b_Debug = 1
+   BEGIN
+      SELECT '<<SUB-SP-RULES>> - [isp_SCE_DL_GENERIC_SO_RULES_100007_10] EXIT... ErrMsg : ' + ISNULL(RTRIM(@c_ErrMsg), '');
+   END;
+
+   IF @n_Continue = 1
+   BEGIN
+      SET @b_Success = 1;
+   END;
+   ELSE
+   BEGIN
+      SET @b_Success = 0;
+   END;
+END;
+
+GO

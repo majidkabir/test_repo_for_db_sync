@@ -1,0 +1,57 @@
+CREATE TABLE [dbo].[receiptdetail_wip]
+(
+    [RowID] bigint IDENTITY(1,1) NOT NULL,
+    [SessionID] bigint NOT NULL DEFAULT ((0)),
+    [ReceiptKey] nvarchar(10) NOT NULL DEFAULT (''),
+    [POKey] nvarchar(10) NOT NULL DEFAULT (''),
+    [Facility] nvarchar(5) NOT NULL DEFAULT (''),
+    [Storerkey] nvarchar(15) NOT NULL DEFAULT (''),
+    [Sku] nvarchar(20) NOT NULL DEFAULT (''),
+    [Qty] int NOT NULL DEFAULT ((0)),
+    [ToLoc] nvarchar(10) NOT NULL DEFAULT (''),
+    [ToID] nvarchar(18) NOT NULL DEFAULT (''),
+    [UCCNo] nvarchar(20) NOT NULL DEFAULT (''),
+    [RFIDNo1] nvarchar(100) NOT NULL DEFAULT (''),
+    [RFIDNo2] nvarchar(100) NOT NULL DEFAULT (''),
+    [TIDNo1] nvarchar(100) NOT NULL DEFAULT (''),
+    [TIDNo2] nvarchar(100) NOT NULL DEFAULT (''),
+    [Lottable01] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable02] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable03] nvarchar(18) NOT NULL DEFAULT (''),
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [Lottable06] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable07] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable08] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable09] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable10] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable11] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable12] nvarchar(30) NOT NULL DEFAULT (''),
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL,
+    [UserDefine01] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine02] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine03] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine04] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine05] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine06] datetime NULL,
+    [UserDefine07] datetime NULL,
+    [UserDefine08] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine09] nvarchar(30) NOT NULL DEFAULT (''),
+    [UserDefine10] nvarchar(30) NOT NULL DEFAULT (''),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [LockDocKey] char(1) NOT NULL DEFAULT (''),
+    CONSTRAINT [PKRECEIPTDETAIL_WIP] PRIMARY KEY ([RowID])
+);
+GO
+
+CREATE INDEX [IDX_BTB_RECEIPTDETAIL_WIP_SessionID] ON [dbo].[receiptdetail_wip] ([SessionID], [ReceiptKey], [POKey], [ToID]);
+GO
+CREATE INDEX [IDX_BTB_RECEIPTDETAIL_WIP_SkuLA] ON [dbo].[receiptdetail_wip] ([SessionID], [Storerkey], [Sku], [ToLoc], [ToID], [UCCNo], [Lottable01], [Lottable02], [Lottable03], [Lottable06], [Lottable07], [Lottable08], [Lottable09], [Lottable10], [Lottable11], [Lottable12]);
+GO

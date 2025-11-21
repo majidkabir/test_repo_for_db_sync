@@ -1,0 +1,223 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+/***************************************************************************/ 
+/* Object Name: isp_loadplan_manifest                                      */
+/* Modification History:                                                   */  
+/*                                                                         */  
+/* Called By:  Exceed                                                      */
+/*                                                                         */
+/* PVCS Version: 1.0                                                       */
+/*                                                                         */
+/* Version: 5.4                                                            */
+/*                                                                         */
+/* Data Modifications:                                                     */
+/*                                                                         */
+/* Date         Author    Ver.  Purposes                                   */
+/* 05-Aug-2002            1.0   Initial revision                           */
+/* 26-Nov-2013  TLTING    1.1   Change user_name() to SUSER_SNAME()        */
+/***************************************************************************/    
+CREATE PROC [dbo].[isp_loadplan_manifest](
+    @c_loadkey NVARCHAR(10)
+ )
+ as 
+ begin
+   SET NOCOUNT ON 
+   SET QUOTED_IDENTIFIER OFF 
+   SET CONCAT_NULL_YIELDS_NULL OFF
+ DECLARE @c_gangleader NVARCHAR(255),
+         @c_description NVARCHAR(255),
+         @c_deliveryman NVARCHAR(255),
+         @c_driver NVARCHAR(255),
+         @c_short NVARCHAR(18),
+         @c_long NVARCHAR(250),
+         @c_vehiclenumber NVARCHAR(10),
+         @c_vehiclenos NVARCHAR(255),
+         @n_batch int,
+         @n_discrete int,
+ 	@n_vehiclecnt int
+ create table #result(
+    loadkey NVARCHAR(10),
+    allocated NVARCHAR(1) null,
+    adddate datetime,
+    gangleader NVARCHAR(255) null,
+    deliveryman NVARCHAR(255) null,
+    vehicle NVARCHAR(255) null,
+    vehicletype NVARCHAR(20) null,
+    vehiclecnt int null,	
+    driver NVARCHAR(255) null,
+    trucksize NVARCHAR(10) null,
+    trfroom NVARCHAR(10) null,  -- Modified by YokeBeen on 07-Oct-2002 (SOS# 7632)
+    delivery_zone NVARCHAR(10) null,
+    remark NVARCHAR(16) null,
+    sku NVARCHAR(20) null,
+    descr NVARCHAR(60) null,
+    itemclass NVARCHAR(250) null,
+    packkey NVARCHAR(10) null,
+    pack_casecnt int null,
+    capacity float(8) null,
+    grossweight float(8) null,
+    totalqty int null,
+    total_ctn int null,
+    total_pc int null,
+    username NVARCHAR(255) null
+ )
+ insert into #result (loadkey, 
+ 		     allocated,	
+                      adddate, 
+                      trucksize,
+                      trfroom, 
+                      delivery_zone, 
+                      remark, 
+                      sku, 
+                      descr,
+                      itemclass,
+ 		     packkey,	
+                      pack_casecnt,
+                      capacity,
+                      grossweight,
+                      totalqty,
+                      username
+ )
+ SELECT LoadPlan.LoadKey,   
+        Orders.UserDefine08,
+        LoadPlan.AddDate,   
+        LoadPlan.TruckSize,   
+        LoadPlan.TrfRoom,   
+        LoadPlan.Delivery_Zone,   
+        remark = convert(NVARCHAR(255),LoadPlan.Load_UserDef1),   
+        ORDERDETAIL.Sku,   
+        SKU.DESCR,   
+        Codelkup.Description,
+        PACK.Packkey,	
+        p_casecnt = PACK.CaseCnt,  
+        capacity = sum((ORDERDETAIL.QtyAllocated+ORDERDETAIL.QtyPicked+ORDERDETAIL.ShippedQty)*SKU.StdCube),   
+        grossweight = sum((ORDERDETAIL.QtyAllocated+ORDERDETAIL.QtyPicked+ORDERDETAIL.ShippedQty)*SKU.stdgrosswgt),
+        qty = sum(ORDERDETAIL.QtyAllocated+ORDERDETAIL.QtyPicked+ORDERDETAIL.ShippedQty),
+        username = Suser_Sname()
+ FROM LoadPlan (nolock),   
+      ORDERDETAIL (nolock),   
+      ORDERS (nolock),   
+      PACK (nolock),   
+      SKU (nolock),
+      CODELKUP (nolock) 
+ WHERE ( LoadPlan.LoadKey = ORDERS.LoadKey ) and  
+       ( ORDERS.OrderKey = ORDERDETAIL.OrderKey ) and  
+       ( ORDERDETAIL.Storerkey = SKU.Storerkey ) and
+       ( ORDERDETAIL.Sku = SKU.Sku ) and  
+       ( ORDERDETAIL.PackKey = PACK.PackKey ) and
+       ( SKU.itemclass = Codelkup.Code ) and
+       ( Codelkup.listname = 'ITEMCLASS' ) and
+       ( LOADPLAN.LoadKey = @c_loadkey)   
+ GROUP BY LoadPlan.LoadKey,   
+ 	 Orders.UserDefine08,
+          LoadPlan.AddDate,   
+          LoadPlan.TruckSize,   
+          LoadPlan.TrfRoom,   
+          LoadPlan.Delivery_Zone,   
+          convert(NVARCHAR(255),LoadPlan.Load_UserDef1),   
+          ORDERDETAIL.Sku,   
+          SKU.DESCR,   
+          Codelkup.Description,
+ 	 PACK.Packkey,
+          PACK.CaseCnt
+ update #result
+ set total_ctn = 0, total_pc = totalqty
+ where pack_casecnt = 0
+ update #result
+ set total_ctn = floor(totalqty/pack_casecnt),total_pc = totalqty % cast(pack_casecnt as int)
+ where totalqty >= pack_casecnt and
+       pack_casecnt > 0
+ update #result
+ set total_ctn = totalqty,total_pc = 0
+ where totalqty < pack_casecnt and
+       pack_casecnt > 0
+ /*Start - Get drivers (gang leader, deliver man, and driver) from codelkup table */
+ declare cur1 cursor FAST_FORWARD READ_ONLY 
+ for
+ select b.description, b.short, b.long 
+ from ids_lp_driver a (nolock), codelkup b (nolock)
+ where a.drivercode = b.code
+ and b.listname='Driver'
+ and b.short in ('G','D','R')
+ and b.long in ('Gang Leader','Delivery Man','Driver')
+ and a.loadkey=@c_loadkey
+ open cur1
+ fetch next from cur1 into @c_description, @c_short, @c_long
+ while (@@fetch_status=0)
+    begin
+       if dbo.fnc_RTrim(@c_short)='G' and dbo.fnc_RTrim(@c_long)='Gang Leader'
+          begin
+             set @c_gangleader = @c_gangleader + dbo.fnc_RTrim(@c_description) + ' / '
+          end
+       else if dbo.fnc_RTrim(@c_short)='D' and dbo.fnc_RTrim(@c_long)='Delivery Man'
+          begin
+             set @c_deliveryman = @c_deliveryman + dbo.fnc_RTrim(@c_description) + ' / '
+          end
+       else if dbo.fnc_RTrim(@c_short)='R' and dbo.fnc_RTrim(@c_long)='Driver'
+           begin
+              set @c_driver = @c_driver + dbo.fnc_RTrim(@c_description) + ' / '
+           end
+       fetch next from cur1 into @c_description, @c_short, @c_long
+    end
+ close cur1
+ deallocate cur1
+ update #result
+ set gangleader = @c_gangleader
+ update #result
+ set deliveryman = @c_deliveryman
+ update #result
+ set driver = @c_driver
+ /*End - Get drivers (gang leader, deliver man, and driver) from codelkup table */
+ -- start: get vehicle numbers
+ declare cur2 cursor FAST_FORWARD READ_ONLY 
+ for
+ select a.vehiclenumber 
+ from ids_lp_vehicle a (nolock), ids_vehicle b (nolock)
+ where a.loadkey = @c_loadkey
+ and a.vehiclenumber = b.vehiclenumber
+ order by linenumber
+ open cur2
+ select @n_vehiclecnt = 0
+ fetch next from cur2 into @c_vehiclenumber
+ while (@@fetch_status=0)
+    begin
+ 		select @n_vehiclecnt = @n_vehiclecnt + 1
+ 		IF dbo.fnc_LTrim(dbo.fnc_RTrim(@c_vehiclenos)) <> ''
+ 			SELECT @c_vehiclenos = @c_vehiclenos + ' / '
+       set @c_vehiclenos =    @c_vehiclenos + dbo.fnc_LTrim(dbo.fnc_RTrim(@c_vehiclenumber)) -- + ' / '
+       fetch next from cur2 into @c_vehiclenumber
+    end
+ close cur2
+ deallocate cur2
+ -- end: get vehicle numbers
+ update #result
+ set vehicle = '*' + @c_vehiclenos,
+     vehiclecnt = @n_vehiclecnt
+ -- start: get the major vehicle type
+ update #result
+ set vehicletype = b.vehicletype
+ from ids_lp_vehicle a (nolock), ids_vehicle b (nolock)
+ where a.loadkey=@c_loadkey
+ and a.vehiclenumber = b.vehiclenumber
+ and a.linenumber = '00001'
+ -- end: get the major vehicle type
+ -- get the no of discrete orders
+ select @n_discrete = count(*)
+ from orders, loadplan
+ where orders.loadkey = loadplan.loadkey and
+       dbo.fnc_RTrim(orders.userdefine08) = 'Y' and
+       loadplan.loadkey = @c_loadkey
+ -- get the no of batch orders
+ select @n_batch = count(*)
+ from orders, loadplan
+ where orders.loadkey = loadplan.loadkey and
+       dbo.fnc_RTrim(orders.userdefine08) = 'N' and
+       loadplan.loadkey = @c_loadkey
+ select *, @n_batch, @n_discrete from #result
+ drop table #result
+ end -- end of procedure
+
+
+GO

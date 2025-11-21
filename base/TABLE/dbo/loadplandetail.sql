@@ -1,0 +1,47 @@
+CREATE TABLE [dbo].[loadplandetail]
+(
+    [LoadKey] nvarchar(10) NOT NULL,
+    [LoadLineNumber] nvarchar(5) NOT NULL,
+    [OrderKey] nvarchar(10) NOT NULL DEFAULT (' '),
+    [ExternOrderKey] nvarchar(50) NULL,
+    [ConsigneeKey] nvarchar(15) NULL,
+    [CustomerName] nvarchar(50) NULL,
+    [Priority] nvarchar(10) NULL,
+    [OrderDate] datetime NULL,
+    [DeliveryDate] datetime NULL,
+    [DeliveryPlace] nvarchar(30) NULL,
+    [Type] nvarchar(10) NULL,
+    [Door] nvarchar(10) NULL,
+    [Stop] nvarchar(10) NULL,
+    [Route] nvarchar(10) NULL,
+    [Weight] float NULL DEFAULT ((0)),
+    [Cube] float NULL,
+    [Status] nvarchar(10) NULL DEFAULT ('0'),
+    [CaseCnt] int NULL DEFAULT ((0)),
+    [NoOfOrdLines] int NULL DEFAULT ((0)),
+    [Rdd] nvarchar(30) NULL,
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [ArchiveCop] nvarchar(1) NULL,
+    [TrafficCop] nvarchar(1) NULL,
+    [UserDefine01] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine02] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine03] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine04] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine05] nvarchar(20) NULL DEFAULT (' '),
+    [UserDefine06] datetime NULL,
+    [UserDefine07] datetime NULL,
+    [UserDefine08] nvarchar(10) NULL DEFAULT ('N'),
+    [UserDefine09] nvarchar(10) NULL DEFAULT (' '),
+    [UserDefine10] nvarchar(10) NULL DEFAULT (' '),
+    [ExternLoadKey] nvarchar(30) NULL DEFAULT (' '),
+    [ExternLineNo] nvarchar(20) NULL DEFAULT (' '),
+    CONSTRAINT [PK_LoadPlanDetail] PRIMARY KEY ([LoadKey], [LoadLineNumber]),
+    CONSTRAINT [FK_LoadPlanDetail_LoadPlan] FOREIGN KEY ([LoadKey]) REFERENCES [dbo].[LoadPlan] ([LoadKey])
+);
+GO
+
+CREATE INDEX [idx_loadplandetail_Orderkey] ON [dbo].[loadplandetail] ([OrderKey]);
+GO

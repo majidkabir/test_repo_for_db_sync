@@ -1,0 +1,33 @@
+CREATE TABLE [dbo].[id]
+(
+    [Id] nvarchar(18) NOT NULL DEFAULT (' '),
+    [Qty] int NOT NULL DEFAULT ((0)),
+    [Status] nvarchar(10) NOT NULL DEFAULT ('OK'),
+    [Packkey] nvarchar(10) NOT NULL DEFAULT ('STD'),
+    [PutAwayTI] int NOT NULL DEFAULT ((0)),
+    [PutAwayHI] int NOT NULL DEFAULT ((0)),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [PalletFlag] nvarchar(30) NULL DEFAULT (''),
+    [TaskStatus] nvarchar(30) NULL DEFAULT (''),
+    [VirtualLoc] nvarchar(10) NULL DEFAULT (''),
+    [PalletFlag2] nvarchar(30) NULL DEFAULT (''),
+    [Channel] nvarchar(20) NULL DEFAULT (''),
+    [Channel_ID] bigint NULL DEFAULT ((0)),
+    [InitialWeight] float NULL DEFAULT ((0)),
+    [PalletType] nvarchar(10) NOT NULL DEFAULT (''),
+    [UserDefine01] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine02] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine03] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine04] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine05] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine06] datetime NULL,
+    [UserDefine07] datetime NULL,
+    [UserDefine08] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine09] nvarchar(30) NULL DEFAULT (' '),
+    [UserDefine10] nvarchar(30) NULL DEFAULT (' '),
+    CONSTRAINT [PKID] PRIMARY KEY ([Id])
+);
+GO

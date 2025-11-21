@@ -1,0 +1,156 @@
+SET ANSI_NULLS OFF;
+GO
+SET QUOTED_IDENTIFIER OFF;
+GO
+
+/************************************************************************/
+/* Stored Procedure: nspTTMPF01                                         */
+/* Purpose: TM Putaway To Strategy                                      */
+/*                                                                      */
+/* Modifications log:                                                   */
+/*                                                                      */
+/* Date        Rev  Author     Purposes                                 */
+/* 30-01-2013  1.0   Ung       SOS256104. Created                       */
+/* 15-07-2015  1.1   Ung       SOS346283 Fix to allow AreaKey blank     */
+/* 15-11-2019  1.2   Chermaine WMS-11126 Add userkey override (cc01)    */
+/* 08-09-2021  1.3   Ung       Performance tuning                       */
+/************************************************************************/
+CREATE PROC [dbo].[nspTTMPF01]
+    @c_UserID    NVARCHAR(18)
+   ,@c_AreaKey01 NVARCHAR(10)
+   ,@c_AreaKey02 NVARCHAR(10)
+   ,@c_AreaKey03 NVARCHAR(10)
+   ,@c_AreaKey04 NVARCHAR(10)
+   ,@c_AreaKey05 NVARCHAR(10)
+   ,@c_LastLOC   NVARCHAR(10)
+AS
+BEGIN
+   SET NOCOUNT ON
+   SET QUOTED_IDENTIFIER OFF
+   SET ANSI_NULLS OFF
+   SET CONCAT_NULL_YIELDS_NULL OFF
+
+   DECLARE 
+       @b_debug      INT
+      ,@n_starttcnt  INT -- Holds the current transaction count
+      ,@n_continue   INT
+      ,@b_Success    INT
+      ,@n_err        INT
+      ,@c_errmsg     NVARCHAR(250)
+      ,@c_TaskDetailkey NVARCHAR(10)
+      ,@c_LastLOCAisle  NVARCHAR(10)
+
+    SELECT 
+       @b_debug = 0
+      ,@n_starttcnt = @@TRANCOUNT
+      ,@n_continue = 1
+      ,@b_success = 0
+      ,@n_err = 0
+      ,@c_errmsg = ''
+      ,@c_TaskDetailkey = ''
+      ,@c_LastLOCAisle = ''
+
+   -- Close cursor
+   IF CURSOR_STATUS( 'global', 'Cursor_PAFTaskCandidates') IN (0, 1) -- 0=empty, 1=record
+      CLOSE Cursor_PAFTaskCandidates
+   IF CURSOR_STATUS( 'global', 'Cursor_PAFTaskCandidates') IN (-1)   -- -1=cursor is closed
+      DEALLOCATE Cursor_PAFTaskCandidates
+
+   -- Get Last LOCAisle
+   SELECT @c_LastLOCAisle = LOCAisle FROM LOC WITH (NOLOCK) WHERE LOC = @c_LastLOC
+
+   IF @c_AreaKey01 <> ''
+      DECLARE Cursor_PAFTaskCandidates CURSOR FAST_FORWARD READ_ONLY FOR --Note: global cursor
+         SELECT TaskDetailkey
+         FROM dbo.TaskDetail WITH (NOLOCK)
+            JOIN dbo.LOC WITH (NOLOCK) ON (TaskDetail.FromLOC = LOC.LOC)
+            JOIN dbo.AreaDetail WITH (NOLOCK) ON (AreaDetail.PutawayZone = LOC.PutAwayZone)
+         WHERE AreaDetail.AreaKey = @c_AreaKey01
+            AND TaskDetail.TaskType IN ('PAF', 'PA1')
+            AND TaskDetail.Status = '0'
+            AND TaskDetail.UserKeyOverRide IN (@c_userid, '')  --(cc01)
+            AND EXISTS( SELECT 1 
+               FROM TaskManagerUserDetail tmu WITH (NOLOCK)
+               WHERE PermissionType = TaskDetail.TASKTYPE
+                 AND tmu.UserKey = @c_UserID
+                 AND tmu.AreaKey = @c_AreaKey01
+                 AND tmu.Permission = '1')
+         ORDER BY
+             TaskDetail.Priority
+            ,CASE WHEN TaskDetail.UserKeyOverRide = @c_userid THEN '0' ELSE '1' END
+            ,CASE WHEN LOC.LOCAisle = @c_LastLOCAisle THEN '0' ELSE '1' END
+            ,LOC.LogicalLocation
+            ,LOC.LOC
+   ELSE
+      DECLARE Cursor_PAFTaskCandidates CURSOR FAST_FORWARD READ_ONLY FOR --Note: global cursor 
+         SELECT TaskDetailkey
+         FROM dbo.TaskDetail WITH (NOLOCK)
+            JOIN dbo.LOC WITH (NOLOCK) ON (TaskDetail.FromLOC = LOC.LOC)
+            JOIN dbo.AreaDetail WITH (NOLOCK) ON (AreaDetail.PutawayZone = LOC.PutAwayZone)
+         WHERE dbo.TaskDetail.TaskType IN ('PAF', 'PA1')
+            AND TaskDetail.Status = '0'
+            AND TaskDetail.UserKeyOverRide IN (@c_userid, '')  --(cc01)
+            AND EXISTS( SELECT 1 
+               FROM TaskManagerUserDetail tmu WITH (NOLOCK)
+               WHERE PermissionType = TaskDetail.TASKTYPE
+                 AND tmu.UserKey = @c_UserID
+                 -- AND tmu.AreaKey = @c_AreaKey01
+                 AND tmu.Permission = '1')
+         ORDER BY
+             TaskDetail.Priority
+            ,CASE WHEN TaskDetail.UserKeyOverRide = @c_userid THEN '0' ELSE '1' END
+            ,CASE WHEN LOC.LOCAisle = @c_LastLOCAisle THEN '0' ELSE '1' END
+            ,LOC.LogicalLocation
+            ,LOC.LOC
+
+   IF @n_continue = 3  -- Error Occured - Process And Return
+   BEGIN
+      SELECT @b_success = 0
+      DECLARE @n_IsRDT INT
+      EXECUTE RDT.rdtIsRDT @n_IsRDT OUTPUT
+
+      IF @n_IsRDT = 1
+      BEGIN
+         -- RDT cannot handle rollback (blank XML will generate). So we are not going to issue a rollback here
+         -- Instead we commit and raise an error back to parent, let the parent decide
+
+         -- Commit until the level we begin with
+         WHILE @@TRANCOUNT > @n_starttcnt
+            COMMIT TRAN
+
+         -- Raise error with severity = 10, instead of the default severity 16. 
+         -- RDT cannot handle error with severity > 10, which stop the processing after executed this trigger
+         RAISERROR (@n_err, 10, 1) WITH SETERROR 
+
+         -- The RAISERROR has to be last line, to ensure @@ERROR is not getting overwritten
+      END
+      ELSE
+      BEGIN
+        IF @@TRANCOUNT = 1 and @@TRANCOUNT > @n_starttcnt
+        BEGIN
+          ROLLBACK TRAN
+        END
+        ELSE
+        BEGIN
+          WHILE @@TRANCOUNT > @n_starttcnt
+          BEGIN
+             COMMIT TRAN
+          END
+        END
+        execute nsp_logerror @n_err, @c_errmsg, 'nspTTMPF01'
+        RAISERROR (@c_errmsg, 16, 1) WITH SETERROR    -- SQL2012
+        RETURN
+     END
+   END
+   ELSE
+   BEGIN
+      SELECT @b_success = 1
+      WHILE @@TRANCOUNT > @n_starttcnt
+      BEGIN
+         COMMIT TRAN
+      END
+      RETURN
+   END
+END
+
+GO

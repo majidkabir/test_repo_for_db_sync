@@ -1,0 +1,30 @@
+CREATE TABLE [dbo].[workorderinputs]
+(
+    [WkOrdInputsKey] nvarchar(10) NOT NULL DEFAULT (''),
+    [MasterWorkOrder] nvarchar(50) NOT NULL,
+    [WorkOrderName] nvarchar(50) NOT NULL DEFAULT (''),
+    [StepNumber] nvarchar(5) NOT NULL DEFAULT (''),
+    [Storerkey] nvarchar(15) NOT NULL DEFAULT (''),
+    [SKU] nvarchar(20) NOT NULL DEFAULT (''),
+    [PackKey] nvarchar(10) NOT NULL DEFAULT (''),
+    [UOM] nvarchar(10) NOT NULL DEFAULT (''),
+    [InLocation] nvarchar(10) NOT NULL DEFAULT (''),
+    [Qty] int NOT NULL DEFAULT ((0)),
+    [Wastage] decimal(18, 2) NOT NULL DEFAULT ((0.00)),
+    [Rotation] nvarchar(10) NOT NULL DEFAULT (''),
+    [PullType] nvarchar(10) NOT NULL DEFAULT (''),
+    [MinQty] int NOT NULL DEFAULT ((0)),
+    [MinUOM] nvarchar(10) NOT NULL DEFAULT (''),
+    [PullQty] int NOT NULL DEFAULT ((0)),
+    [PullUOM] nvarchar(10) NOT NULL DEFAULT (''),
+    [NonInvSku] nvarchar(80) NOT NULL DEFAULT (''),
+    [NonInvLocation] nvarchar(10) NOT NULL DEFAULT (''),
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    CONSTRAINT [PK_WorkOrderInputs] PRIMARY KEY ([WkOrdInputsKey])
+);
+GO

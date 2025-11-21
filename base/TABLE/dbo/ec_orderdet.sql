@@ -1,0 +1,67 @@
+CREATE TABLE [dbo].[ec_orderdet]
+(
+    [EC_OrderDetNo] bigint IDENTITY(1,1) NOT NULL,
+    [EC_OrderNo] bigint NOT NULL,
+    [OrderKey] nvarchar(10) NULL DEFAULT (' '),
+    [OrderLineNumber] nvarchar(5) NULL DEFAULT (' '),
+    [ExternOrderKey] nvarchar(50) NULL DEFAULT (' '),
+    [ExternLineNo] nvarchar(10) NULL DEFAULT (' '),
+    [StorerKey] nvarchar(15) NOT NULL DEFAULT (' '),
+    [Sku] nvarchar(20) NOT NULL DEFAULT (' '),
+    [ManufacturerSku] nvarchar(20) NULL DEFAULT (' '),
+    [RetailSku] nvarchar(20) NULL DEFAULT (' '),
+    [AltSku] nvarchar(20) NULL DEFAULT (' '),
+    [OriginalQty] int NULL DEFAULT ((0)),
+    [OpenQty] int NULL DEFAULT ((0)),
+    [ShippedQty] int NULL DEFAULT ((0)),
+    [AdjustedQty] int NULL DEFAULT ((0)),
+    [QtyPreAllocated] int NULL DEFAULT ((0)),
+    [QtyAllocated] int NULL DEFAULT ((0)),
+    [QtyPicked] int NULL DEFAULT ((0)),
+    [UOM] nvarchar(10) NULL DEFAULT (' '),
+    [PackKey] nvarchar(10) NULL DEFAULT ('STD'),
+    [PickCode] nvarchar(10) NULL DEFAULT (' '),
+    [CartonGroup] nvarchar(10) NULL DEFAULT (' '),
+    [Status] nvarchar(10) NULL DEFAULT ('0'),
+    [UnitPrice] float NULL DEFAULT ((0)),
+    [ExtendedPrice] float NULL DEFAULT ((0)),
+    [Lottable01] nvarchar(18) NULL DEFAULT (' '),
+    [Lottable02] nvarchar(18) NOT NULL DEFAULT (' '),
+    [Lottable03] nvarchar(18) NOT NULL DEFAULT (' '),
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [UserDefine01] nvarchar(18) NULL,
+    [UserDefine02] nvarchar(18) NULL,
+    [UserDefine03] nvarchar(18) NULL,
+    [UserDefine04] nvarchar(18) NULL,
+    [UserDefine05] nvarchar(18) NULL,
+    [UserDefine06] datetime NULL,
+    [UserDefine07] datetime NULL,
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [TrafficCop] nvarchar(1) NULL,
+    [ArchiveCop] nvarchar(1) NULL,
+    [Lottable06] nvarchar(30) NULL DEFAULT (''),
+    [Lottable07] nvarchar(30) NULL DEFAULT (''),
+    [Lottable08] nvarchar(30) NULL DEFAULT (''),
+    [Lottable09] nvarchar(30) NULL DEFAULT (''),
+    [Lottable10] nvarchar(30) NULL DEFAULT (''),
+    [Lottable11] nvarchar(30) NULL DEFAULT (''),
+    [Lottable12] nvarchar(30) NULL DEFAULT (''),
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL,
+    CONSTRAINT [PK_EC_OrderDet] PRIMARY KEY ([EC_OrderDetNo]),
+    CONSTRAINT [FK_EC_OrderDet_EC_OrderDet_SKU] FOREIGN KEY ([StorerKey], [Sku]) REFERENCES [dbo].[SKU] ([StorerKey], [Sku]),
+    CONSTRAINT [FK_EC_OrderDet_EC_Orders] FOREIGN KEY ([EC_OrderNo]) REFERENCES [dbo].[EC_Orders] ([EC_OrderNo])
+);
+GO
+
+CREATE INDEX [IX_EC_OrderDet_ExtOrdKey] ON [dbo].[ec_orderdet] ([ExternOrderKey], [ExternLineNo]);
+GO
+CREATE INDEX [IX_EC_OrderDet_OrderKey] ON [dbo].[ec_orderdet] ([OrderKey], [OrderLineNumber]);
+GO
+CREATE INDEX [IX_EC_OrderDet_OrderNo] ON [dbo].[ec_orderdet] ([EC_OrderNo]);
+GO

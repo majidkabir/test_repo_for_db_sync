@@ -1,0 +1,31 @@
+CREATE TABLE [rdt].[rdtlottablecode]
+(
+    [RowRef] int IDENTITY(1,1) NOT NULL,
+    [LottableCode] nvarchar(20) NOT NULL,
+    [Function_ID] int NOT NULL,
+    [LottableNo] int NOT NULL,
+    [Visible] nvarchar(1) NOT NULL,
+    [Editable] nvarchar(1) NOT NULL,
+    [Required] nvarchar(1) NOT NULL,
+    [Sequence] int NOT NULL,
+    [AddWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [AddDate] datetime NOT NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NOT NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NOT NULL DEFAULT (getdate()),
+    [FormatSP] nvarchar(50) NOT NULL DEFAULT (''),
+    [StorerKey] nvarchar(15) NOT NULL,
+    [Description] nvarchar(20) NOT NULL DEFAULT (''),
+    [ProcessSP] nvarchar(50) NOT NULL DEFAULT (''),
+    [ProcessType] nvarchar(10) NOT NULL DEFAULT (''),
+    [Verify] nvarchar(1) NULL,
+    CONSTRAINT [PK_rdtLottableCode] PRIMARY KEY ([LottableCode], [Function_ID], [StorerKey], [LottableNo], [Sequence]),
+    CONSTRAINT [CK_rdtLottableCode_LottableNo] CHECK ([LottableNo]>=(1) AND [LottableNo]<=(15)),
+    CONSTRAINT [CK_rdtLottableCode_Visible] CHECK ([Visible]='0' OR [Visible]='1'),
+    CONSTRAINT [CK_rdtLottableCode_Editable] CHECK ([Editable]='0' OR [Editable]='1'),
+    CONSTRAINT [CK_rdtLottableCode_Required] CHECK ([Required]='0' OR [Required]='1'),
+    CONSTRAINT [CK_rdtLottableCode_Sequence] CHECK ([Sequence]>=(1) AND [Sequence]<=(15)),
+    CONSTRAINT [CK_rdtLottableCode_Process] CHECK ([ProcessType]='' AND [ProcessSP]='' OR [ProcessType]<>'' AND [ProcessSP]<>''),
+    CONSTRAINT [CK_rdtLottableCode_ProcessType] CHECK ([ProcessType]='BOTH' OR [ProcessType]='POST' OR [ProcessType]='PRE' OR [ProcessType]=''),
+    CONSTRAINT [CK_rdtLottableCode_Verify] CHECK ([Verify]='0' OR [Verify]='1')
+);
+GO

@@ -1,0 +1,203 @@
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+/************************************************************************/
+/* Store Procedure:  isp_SCE_DL_GENERIC_SKU_RULES_100005_10             */
+/* Creation Date: 17-Jan-2022                                           */
+/* Copyright: LFL                                                       */
+/* Written by: GHChan                                                   */
+/*                                                                      */
+/* Purpose:  Perform SKU checking                                       */
+/*                                                                      */
+/*                                                                      */
+/* Usage: @c_InParm1  = '0' Not Allow update the existing SKU           */
+/*        @c_InParm1  = '1' Allow update the existing SKU               */
+/*        @c_InParm2  = '1' Not Allow insert new SKU                    */
+/*                                                                      */
+/*                                                                      */
+/* Called By: - SCE DL Main Stored Procedures e.g. (isp_SCE_DL_Generic) */
+/*                                                                      */
+/* Version: 1.0                                                         */
+/*                                                                      */
+/* Data Modifications:                                                  */
+/*                                                                      */
+/* Updates:                                                             */
+/* Date         Author    Ver.  Purposes                                */
+/* 17-Jan-2022  GHChan    1.1   Initial                                 */
+/************************************************************************/
+
+CREATE PROCEDURE [dbo].[isp_SCE_DL_GENERIC_SKU_RULES_100005_10] (
+   @b_Debug       INT            = 0
+ , @n_BatchNo     INT            = 0
+ , @n_Flag        INT            = 0
+ , @c_SubRuleJson NVARCHAR(MAX)
+ , @c_STGTBL      NVARCHAR(250)  = ''
+ , @c_POSTTBL     NVARCHAR(250)  = ''
+ , @c_UniqKeyCol  NVARCHAR(1000) = ''
+ , @c_Username    NVARCHAR(128)  = ''
+ , @b_Success     INT            = 0 OUTPUT
+ , @n_ErrNo       INT            = 0 OUTPUT
+ , @c_ErrMsg      NVARCHAR(250)  = '' OUTPUT
+)
+AS
+BEGIN
+   SET NOCOUNT ON;
+   SET ANSI_NULLS OFF;
+   SET QUOTED_IDENTIFIER OFF;
+   SET CONCAT_NULL_YIELDS_NULL OFF;
+   SET ANSI_WARNINGS OFF;
+
+   DECLARE @c_ExecStatements NVARCHAR(4000)
+         , @c_ExecArguments  NVARCHAR(4000)
+         , @n_Continue       INT
+         , @n_StartTCnt      INT;
+
+   DECLARE @c_InParm1 NVARCHAR(60)
+         , @c_InParm2 NVARCHAR(60)
+         , @c_InParm3 NVARCHAR(60)
+         , @c_InParm4 NVARCHAR(60)
+         , @c_InParm5 NVARCHAR(60);
+   --, @c_InParm6            NVARCHAR(60)    
+   --, @c_InParm7            NVARCHAR(60)    
+   --, @c_InParm8            NVARCHAR(60)    
+   --, @c_InParm9            NVARCHAR(60)    
+   --, @c_InParm10           NVARCHAR(60)    
+
+   DECLARE @c_StorerKey NVARCHAR(15)
+         , @c_Sku       NVARCHAR(20)
+         , @c_ttlMsg    NVARCHAR(250);
+
+   SELECT @c_InParm1 = InParm1
+        , @c_InParm2 = InParm2
+        , @c_InParm3 = InParm3
+        , @c_InParm4 = InParm4
+        , @c_InParm5 = InParm5
+   FROM
+      OPENJSON(@c_SubRuleJson)
+      WITH (
+      SPName NVARCHAR(300) '$.SubRuleSP'
+    , InParm1 NVARCHAR(60) '$.InParm1'
+    , InParm2 NVARCHAR(60) '$.InParm2'
+    , InParm3 NVARCHAR(60) '$.InParm3'
+    , InParm4 NVARCHAR(60) '$.InParm4'
+    , InParm5 NVARCHAR(60) '$.InParm5'
+      )
+   WHERE SPName = OBJECT_NAME(@@PROCID);
+
+   IF EXISTS (
+   SELECT 1
+   FROM dbo.SCE_DL_SKU_STG WITH (NOLOCK)
+   WHERE STG_BatchNo              = @n_BatchNo
+   AND   STG_Status                 = '1'
+   AND   (Sku IS NULL OR RTRIM(Sku) = '')
+   )
+   BEGIN
+      BEGIN TRANSACTION;
+
+      UPDATE SCE_DL_SKU_STG WITH (ROWLOCK)
+      SET STG_Status = '3'
+        , STG_ErrMsg = LTRIM(RTRIM(ISNULL(STG_ErrMsg, ''))) + '/SKU is Null'
+      WHERE STG_BatchNo              = @n_BatchNo
+      AND   STG_Status                 = '1'
+      AND   (Sku IS NULL OR RTRIM(Sku) = '');
+
+      IF @@ERROR <> 0
+      BEGIN
+         SET @n_Continue = 3;
+         SET @n_ErrNo = 68001;
+         SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                         + ': Update record fail. (isp_SCE_DL_GENERIC_SKU_RULES_100005_10)';
+         ROLLBACK;
+         GOTO STEP_999_EXIT_SP;
+      END;
+      COMMIT;
+   END;
+
+   DECLARE C_CHK CURSOR LOCAL FAST_FORWARD READ_ONLY FOR
+   SELECT RTRIM(StorerKey)
+        , RTRIM(Sku)
+   FROM dbo.SCE_DL_SKU_STG WITH (NOLOCK)
+   WHERE STG_BatchNo = @n_BatchNo
+   AND   STG_Status    = '1'
+   --AND   StorerKey IS NOT NULL
+   --AND   RTRIM(StorerKey) <> ''
+   GROUP BY RTRIM(StorerKey)
+          , RTRIM(Sku);
+
+   OPEN C_CHK;
+   FETCH NEXT FROM C_CHK
+   INTO @c_StorerKey
+      , @c_Sku;
+
+   WHILE @@FETCH_STATUS = 0
+   BEGIN
+      SET @c_ttlMsg = N'';
+
+      IF EXISTS (
+      SELECT 1
+      FROM dbo.V_SKU WITH (NOLOCK)
+      WHERE Sku     = @c_Sku
+      AND   StorerKey = @c_StorerKey
+      )
+      BEGIN
+         IF @c_InParm1 = '0'
+            SET @c_ttlMsg = LTRIM(RTRIM(ISNULL(@c_ttlMsg, ''))) + N'/Error:SKU already exists.User not allow to update';
+      END;
+      ELSE
+      BEGIN
+         IF @c_InParm2 = '1'
+            SET @c_ttlMsg = LTRIM(RTRIM(ISNULL(@c_ttlMsg, ''))) + N'/Error:This is new sku. User not allow to insert new sku';
+      END;
+
+      IF @c_ttlMsg <> ''
+      BEGIN
+         BEGIN TRANSACTION;
+
+         UPDATE dbo.SCE_DL_SKU_STG WITH (ROWLOCK)
+         SET STG_Status = '3'
+           , STG_ErrMsg = @c_ttlMsg
+         WHERE STG_BatchNo    = @n_BatchNo
+         AND   STG_Status       = '1'
+         AND   RTRIM(StorerKey) = @c_StorerKey
+         AND   RTRIM(Sku)       = @c_Sku;
+
+         IF @@ERROR <> 0
+         BEGIN
+            SET @n_Continue = 3;
+            SET @n_ErrNo = 68001;
+            SET @c_ErrMsg = 'NSQL' + CONVERT(CHAR(5), ISNULL(@n_ErrNo, 0))
+                            + ': Update record fail. (isp_SCE_DL_GENERIC_SKU_RULES_100005_10)';
+            ROLLBACK;
+            GOTO STEP_999_EXIT_SP;
+         END;
+
+         COMMIT;
+      END;
+
+      FETCH NEXT FROM C_CHK
+      INTO @c_StorerKey
+         , @c_Sku;
+   END;
+
+   CLOSE C_CHK;
+   DEALLOCATE C_CHK;
+   QUIT:
+
+   STEP_999_EXIT_SP:
+   IF @b_Debug = 1
+   BEGIN
+      SELECT '<<SUB-SP-RULES>> - [isp_SCE_DL_GENERIC_SKU_RULES_100005_10] EXIT... ErrMsg : ' + ISNULL(RTRIM(@c_ErrMsg), '');
+   END;
+
+   IF @n_Continue = 1
+   BEGIN
+      SET @b_Success = 1;
+   END;
+   ELSE
+   BEGIN
+      SET @b_Success = 0;
+   END;
+END;
+
+GO

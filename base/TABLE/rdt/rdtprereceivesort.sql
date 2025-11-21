@@ -1,0 +1,49 @@
+CREATE TABLE [rdt].[rdtprereceivesort]
+(
+    [Rowref] int IDENTITY(1,1) NOT NULL,
+    [Mobile] int NOT NULL,
+    [Func] int NOT NULL,
+    [Facility] nvarchar(5) NOT NULL,
+    [StorerKey] nvarchar(15) NOT NULL,
+    [ReceiptKey] nvarchar(10) NOT NULL,
+    [UCCNo] nvarchar(20) NULL,
+    [SKU] nvarchar(20) NULL,
+    [Qty] int NULL DEFAULT ((0)),
+    [Loc] nvarchar(10) NULL,
+    [ID] nvarchar(18) NULL,
+    [Status] nvarchar(10) NULL DEFAULT (suser_sname()),
+    [Position] nvarchar(10) NULL,
+    [Lottable01] nvarchar(18) NULL,
+    [Lottable02] nvarchar(18) NULL,
+    [Lottable03] nvarchar(18) NULL,
+    [Lottable04] datetime NULL,
+    [Lottable05] datetime NULL,
+    [Lottable06] nvarchar(30) NULL,
+    [Lottable07] nvarchar(30) NULL,
+    [Lottable08] nvarchar(30) NULL,
+    [Lottable09] nvarchar(30) NULL,
+    [Lottable10] nvarchar(30) NULL,
+    [Lottable11] nvarchar(30) NULL,
+    [Lottable12] nvarchar(30) NULL,
+    [Lottable13] datetime NULL,
+    [Lottable14] datetime NULL,
+    [Lottable15] datetime NULL,
+    [SourceType] nvarchar(30) NULL,
+    [UDF01] nvarchar(30) NULL,
+    [UDF02] nvarchar(30) NULL,
+    [UDF03] nvarchar(30) NULL,
+    [UDF04] nvarchar(30) NULL,
+    [UDF05] nvarchar(30) NULL,
+    [AddDate] datetime NULL DEFAULT (getdate()),
+    [AddWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [EditDate] datetime NULL DEFAULT (getdate()),
+    [EditWho] nvarchar(128) NULL DEFAULT (suser_sname()),
+    [ArchiveCop] nvarchar(1) NULL,
+    CONSTRAINT [PK_rdtPreReceiveSort] PRIMARY KEY ([Rowref])
+);
+GO
+
+CREATE INDEX [IX_rdtPreReceiveSort_ReceiptKey_Loc_Status] ON [rdt].[rdtprereceivesort] ([ReceiptKey], [Loc], [Status]);
+GO
+CREATE INDEX [IX_rdtPreReceiveSort_ReceiptKey_Ucc_Status] ON [rdt].[rdtprereceivesort] ([ReceiptKey], [UCCNo], [Status]);
+GO
